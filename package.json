@@ -1,0 +1,15 @@
+{
+  "name": "ms-files-service",
+  "version": "0.0.0",
+  "description": "Microservice to upload/download files to Microsoft Cloud on behalf of a user",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Erika Pauwels <erika.pauwels@redpencil.io>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rollvolet/ms-files-service.git"
+  }
+}
