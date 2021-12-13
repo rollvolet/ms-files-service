@@ -1,55 +1,69 @@
-import { sparqlEscapeUri } from 'mu';
-import { querySudo } from '@lblod/mu-auth-sudo';
-import fetch, { Headers } from 'node-fetch';
+import 'isomorphic-fetch';
+import { Client, LargeFileUploadTask, FileUpload } from "@microsoft/microsoft-graph-client";
+import MuAuthenticationProvider from './mu-authentication-provider';
 
-const GRAPH_API = process.env.GRAPH_API || 'https://graph.microsoft.com/v1.0/';
-const SESSIONS_GRAPH = process.env.SESSIONS_GRAPH || 'http://mu.semte.ch/graphs/sessions';
+const MS_DRIVE_ID = process.env.MS_DRIVE_ID;
+
+const ATTACHMENTS_FOLDER = process.env.ATTACHMENTS_FOLDER || 'crm-development/attachments';
 
 export default class GraphApiClient {
   constructor(sessionUri) {
-    this.sessionUri = sessionUri;
+    this.client = Client.initWithMiddleware({
+      authProvider: new MuAuthenticationProvider(sessionUri)
+    });
   }
-
-  /**
-   * Get the access token for a given session from the triplestore.
-   * Returns null if none can be found.
-   */
-  async getAccessToken() {
-    const queryResult = await querySudo(`
-      PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
-      PREFIX oauth: <http://data.rollvolet.be/vocabularies/oauth-2.0/>
-      SELECT ?accessToken
-      WHERE {
-        GRAPH <${SESSIONS_GRAPH}> {
-          ?oauthSession oauth:authenticates ${sparqlEscapeUri(this.sessionUri)} ;
-                        oauth:tokenValue ?accessToken .
-        }
-      }`);
-
-    if (queryResult.results.bindings.length) {
-      return queryResult.results.bindings[0]['accessToken'].value;
-    } else {
-      throw new Error('No access token available for session');
-    }
-  };
 
   async me() {
-    const accessToken = await this.getAccessToken();
-    const response = await fetch(`${GRAPH_API}/me`, {
-      headers: this.getAuthorizationHeader(accessToken)
-    });
-    const json = await response.json();
+    const response = await this.client.api('/me').get();
 
     console.log('Retrieved my profile');
-    console.log(json);
+    console.log(response);
   }
 
-  /**
-   * @private
-  */
-  getAuthorizationHeader(accessToken) {
-    return new Headers({
-      Authorization: `Bearer ${accessToken}`
-    });
+  async uploadCaseAttachment(caseId, file) {
+    const filename = file.name; // TODO character espacing?
+    const filePath = `/${ATTACHMENTS_FOLDER}/${caseId}/${filename}`;
+    const fileObject = new FileUpload(file.data, file.name, file.size);
+    const uploadedFile = await this.uploadFile(filePath, fileObject);
+    return uploadedFile;
+  }
+
+  async uploadFile(filePath, fileObject) {
+    const url = `/drives/${MS_DRIVE_ID}/root:${filePath}:/createUploadSession`;
+    const body = {
+      item: {
+        '@microsoft.graph.conflictBehavior': 'rename'
+      }
+    };
+    const uploadSession = await LargeFileUploadTask.createUploadSession(this.client, url, body);
+    const options = {
+      rangeSize: 320 * 1024, // must be a multiple of 320 KiB
+      uploadEventHandlers: {
+        progress(range) {
+          console.log(`Upload in progress: [${range.minValue}-${range.maxValue}] bytes of content uploaded`);
+        }
+      }
+    };
+
+    console.log(`Starting upload file to drive ${MS_DRIVE_ID} on path ${filePath}`);
+    const uploadTask = new LargeFileUploadTask(this.client, fileObject, uploadSession, options);
+
+    try {
+      const uploadResult = await uploadTask.upload();
+      console.log(`Uploading file to drive ${MS_DRIVE_ID} on path ${filePath} succeeded. Item id: ${uploadResult.responseBody.id}`);
+      return {
+        id: uploadResult.responseBody.id,
+        name: uploadResult.responseBody.name,
+        url: uploadResult.responseBody.webUrl,
+        size: uploadResult.responseBody.size,
+        format: uploadResult.responseBody.file.mimeType,
+        created: new Date(Date.parse(uploadResult.responseBody.createdDateTime)),
+        modified: new Date(Date.parse(uploadResult.responseBody.lastModifiedDateTime))
+      };
+    } catch (e) {
+      console.log(`Uploading file to drive ${MS_DRIVE_ID} on path ${filePath} failed`);
+      console.trace(e);
+      throw e;
+    }
   }
 }
