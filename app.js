@@ -84,4 +84,26 @@ app.delete('/files/:id', async function(req, res, next) {
   }
 });
 
+app.get('/files/:id/download', async function(req, res, next) {
+  const sessionUri = getSessionIdHeader(req);
+  if (!sessionUri)
+    return next(new Error('Session header is missing'));
+
+  try {
+    const fileId = req.params.id;
+    const msFileId = await getMsFileId(fileId);
+    if (msFileId) {
+      const client = new GraphApiClient(sessionUri);
+      const downloadUrl = await client.getDownloadUrl(msFileId);
+      return res.location(downloadUrl).status(204).send();
+    } else {
+      console.log(`No MS fileId found in triplestore for file with id ${fileId}`);
+      return res.status(404).send();
+    }
+  } catch(e) {
+    console.trace(e);
+    return next(new Error(e.message));
+  }
+});
+
 app.use(errorHandler);

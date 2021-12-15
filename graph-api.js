@@ -52,6 +52,19 @@ export default class GraphApiClient {
   }
 
   /**
+   * Get a temporary download URL for the file with the given MS fileId from the O365 drive.
+  */
+  async getDownloadUrl(fileId) {
+    try {
+      const response = await this.client.api(`/drives/${MS_DRIVE_ID}/items/${fileId}`).get();
+      return response['@microsoft.graph.downloadUrl'];
+    } catch (e) {
+      console.log(`Failed to delete file with id ${fileId} from drive ${MS_DRIVE_ID}`);
+      throw e;
+    }
+  }
+
+  /**
    * @private
   */
   async uploadFile(filePath, fileObject) {
