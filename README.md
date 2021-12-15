@@ -8,7 +8,7 @@ Add the following snippet to your `docker-compose.yml` to include the files serv
 
 ```yml
 files:
-  image: rollvolet/ms-files-service
+  image: rollvolet/ms-files-service:0.1.0
 ```
 
 Add rules to the `dispatcher.ex` to dispatch requests to the files service. E.g.
@@ -39,7 +39,8 @@ Add rules to the `dispatcher.ex` to dispatch requests to the files service. E.g.
 ## Reference
 ### Configuration
 The following enviroment variables can be set on the service:
-- **MS_DRIVE_ID** ID of the Microsoft drive to store files on (differs per environment)
+- **MS_DRIVE_ID**: ID of the Microsoft drive to store files on (differs per environment)
+- **ATTACHMENTS_FOLDER**: folder to store attachments in (additional subfolder per case is automatically created)
 
 ### Model
 #### Ontologies and prefixes
@@ -51,6 +52,7 @@ The data model is based on the data model of the [mu-file-service](https://githu
 | nie     | http://www.semanticdesktop.org/ontologies/2007/01/19/nie# |
 | dct     | http://purl.org/dc/terms/                                 |
 | dbpedia | http://dbpedia.org/ontology/                              |
+| dossier | https://data.vlaanderen.be/ns/dossier#                    |
 
 #### Files
 ##### Description
