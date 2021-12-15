@@ -6,6 +6,14 @@ const MS_DRIVE_ID = process.env.MS_DRIVE_ID;
 
 const ATTACHMENTS_FOLDER = process.env.ATTACHMENTS_FOLDER || 'crm-development/attachments';
 
+/**
+ * Client to interact with the MS Graph API. Requests are executed on behalf of a user.
+ * The client uses the mu-authentication-provider which fetches an access-token from
+ * the triplestore based on the user's session.
+ *
+ * Note: This client is not responsible for inserting/deleting data in the triplestore,
+ * only for interacting with the O365 Cloud using the Graph API.
+*/
 export default class GraphApiClient {
   constructor(sessionUri) {
     this.client = Client.initWithMiddleware({
@@ -15,11 +23,14 @@ export default class GraphApiClient {
 
   async me() {
     const response = await this.client.api('/me').get();
-
     console.log('Retrieved my profile');
     console.log(response);
   }
 
+  /**
+   * Upload the given file as an attachment for the case with the given caseId.
+   * The file gets uploaded on the O365 drive in the configured ATTACHMENTS_FOLDER per case.
+  */
   async uploadCaseAttachment(caseId, file) {
     const filename = file.name; // TODO character espacing?
     const filePath = `/${ATTACHMENTS_FOLDER}/${caseId}/${filename}`;
@@ -28,6 +39,21 @@ export default class GraphApiClient {
     return uploadedFile;
   }
 
+  /**
+   * Delete the file with the given MS fileId from the O365 drive.
+  */
+  async deleteFile(fileId) {
+    try {
+      await this.client.api(`/drives/${MS_DRIVE_ID}/items/${fileId}`).delete();
+    } catch (e) {
+      console.log(`Failed to delete file with id ${fileId} from drive ${MS_DRIVE_ID}`);
+      throw e;
+    }
+  }
+
+  /**
+   * @private
+  */
   async uploadFile(filePath, fileObject) {
     const url = `/drives/${MS_DRIVE_ID}/root:${filePath}:/createUploadSession`;
     const body = {
@@ -62,7 +88,6 @@ export default class GraphApiClient {
       };
     } catch (e) {
       console.log(`Uploading file to drive ${MS_DRIVE_ID} on path ${filePath} failed`);
-      console.trace(e);
       throw e;
     }
   }

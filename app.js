@@ -2,7 +2,12 @@ import { app, errorHandler } from 'mu';
 import fileUpload from 'express-fileupload';
 import { getSessionIdHeader, error } from './utils';
 import GraphApiClient from './graph-api';
-import { insertUploadedFile, linkAttachmentToCase } from './sparql';
+import {
+  insertUploadedFile,
+  getMsFileId,
+  deleteFile,
+  linkAttachmentToCase
+} from './sparql';
 
 app.use(fileUpload());
 
@@ -46,6 +51,33 @@ app.post('/cases/:caseId/attachments', async function(req, res, next) {
         }
       }
     });
+  } catch(e) {
+    console.trace(e);
+    return next(new Error(e.message));
+  }
+});
+
+app.delete('/files/:id', async function(req, res, next) {
+  const sessionUri = getSessionIdHeader(req);
+  if (!sessionUri)
+    return next(new Error('Session header is missing'));
+
+  try {
+    const fileId = req.params.id;
+    const msFileId = await getMsFileId(fileId);
+    if (msFileId) {
+      const client = new GraphApiClient(sessionUri);
+      try {
+        await client.deleteFile(msFileId);
+      } catch (e) {
+        console.log(`Failed to delete file from drive, but will still continue to remove file from triplestore`);
+      }
+      await deleteFile(fileId);
+      return res.status(204).send();
+    } else {
+      console.log(`No MS fileId found in triplestore for file with id ${fileId}`);
+      return res.status(404).send();
+    }
   } catch(e) {
     console.trace(e);
     return next(new Error(e.message));

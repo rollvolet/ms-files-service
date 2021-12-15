@@ -14,7 +14,12 @@ const error = function(res, message, status = 400) {
   return res.status(status).json({errors: [ { title: message } ] });
 };
 
+const sleep = function(millis) {
+  return new Promise(resolve => setTimeout(resolve, millis));
+};
+
 export {
   getSessionIdHeader,
-  error
+  error,
+  sleep
 }
