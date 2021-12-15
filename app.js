@@ -30,6 +30,8 @@ app.post('/cases/:caseId/attachments', async function(req, res, next) {
   const sessionUri = getSessionIdHeader(req);
   if (!sessionUri)
     return next(new Error('Session header is missing'));
+  if (!req.files.file)
+    return next(new Error('File parameter is missing'));
 
   try {
     const caseId = req.params.caseId;
