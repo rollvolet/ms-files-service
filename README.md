@@ -9,6 +9,8 @@ Add the following snippet to your `docker-compose.yml` to include the files serv
 ```yml
 files:
   image: rollvolet/ms-files-service:0.1.0
+  environment:
+    MS_DRIVE_ID: "my-microsoft-drive-id"
 ```
 
 Add rules to the `dispatcher.ex` to dispatch requests to the files service. E.g.
