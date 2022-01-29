@@ -13,6 +13,8 @@ export default class MuAuthenticationProvider {
 	 * This should return a Promise that resolves to an accessToken (in case of success)
    * or rejects with error (in case of failure)
 	 */
+  // TODO replace sudo query with regular mu-query
+  // since logged in users have access to their own session data.
   async getAccessToken(options) {
     const queryResult = await querySudo(`
       PREFIX mu: <http://mu.semte.ch/vocabularies/core/>

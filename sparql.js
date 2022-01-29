@@ -1,4 +1,8 @@
-import { sparqlEscapeUri, sparqlEscapeString, sparqlEscapeDateTime, sparqlEscapeInt, uuid, update, query } from 'mu';
+import { sparqlEscapeUri, sparqlEscapeString, sparqlEscapeDateTime, sparqlEscapeInt, uuid } from 'mu';
+// TODO replace sudo query with regular mu-query and remove GRAPH statements from queries
+// But currently mu-auth-allowed-headers break for large files, since the header
+// set by the identifier on the request seems to get lost in the chunked data
+import { querySudo as query, updateSudo as update } from '@lblod/mu-auth-sudo';
 import { sleep } from './utils';
 
 const BASE_URI = 'http://data.rollvolet.be';
@@ -21,6 +25,7 @@ async function insertUploadedFile(file) {
     PREFIX dct: <http://purl.org/dc/terms/>
 
     INSERT DATA {
+     GRAPH <http://mu.semte.ch/graphs/rollvolet> {
       ${sparqlEscapeUri(fileUri)} a nfo:FileDataObject ;
         mu:uuid ${sparqlEscapeString(fileId)} ;
         nfo:fileName ${sparqlEscapeString(file.name)} ;
@@ -38,6 +43,7 @@ async function insertUploadedFile(file) {
         nfo:fileCreated ${sparqlEscapeDateTime(file.created)} ;
         nfo:fileUrl ${sparqlEscapeUri(file.url)} ;
         nie:dataSource ${sparqlEscapeUri(fileUri)} .
+     }
     }
   `);
 
@@ -60,9 +66,11 @@ async function getMsFileId(fileId) {
 
     SELECT ?msFileId
     WHERE {
+     GRAPH <http://mu.semte.ch/graphs/rollvolet> {
       ?file mu:uuid ${sparqlEscapeString(fileId)} .
       ?remoteFile nie:dataSource ?file ;
           dct:identifier ?msFileId .
+     }
     } LIMIT 1
   `);
 
@@ -82,11 +90,15 @@ async function deleteFile(fileId) {
     PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
     DELETE {
+     GRAPH <http://mu.semte.ch/graphs/rollvolet> {
       ?case dossier:Dossier.bestaatUit ?file .
+     }
     } WHERE {
+     GRAPH <http://mu.semte.ch/graphs/rollvolet> {
       ?case dossier:Dossier.bestaatUit ?file .
       ?file a nfo:FileDataObject ;
         mu:uuid ${sparqlEscapeString(fileId)} .
+     }
     }
   `);
 
@@ -100,15 +112,19 @@ async function deleteFile(fileId) {
     PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
     DELETE {
+     GRAPH <http://mu.semte.ch/graphs/rollvolet> {
       ?file nfo:fileName ?name .
       ?remoteFile nfo:fileName ?remoteName .
+     }
     } WHERE {
+     GRAPH <http://mu.semte.ch/graphs/rollvolet> {
       ?file a nfo:FileDataObject ;
         mu:uuid ${sparqlEscapeString(fileId)} ;
         nfo:fileName ?name .
       ?remoteFile a nfo:RemoteDataObject ;
         nie:dataSource ?file ;
         nfo:fileName ?remoteName .
+     }
     }
   `);
   await sleep(1000);
@@ -120,15 +136,19 @@ async function deleteFile(fileId) {
     PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
     DELETE {
+     GRAPH <http://mu.semte.ch/graphs/rollvolet> {
       ?file ?p ?o .
       ?remoteFile ?x ?y .
+     }
     } WHERE {
+     GRAPH <http://mu.semte.ch/graphs/rollvolet> {
       ?file a nfo:FileDataObject ;
         mu:uuid ${sparqlEscapeString(fileId)} ;
         ?p ?o .
       ?remoteFile a nfo:RemoteDataObject ;
         nie:dataSource ?file ;
         ?x ?y .
+     }
     }
   `);
 }
@@ -144,9 +164,11 @@ async function linkAttachmentToCase(attachmentUri, caseId) {
     PREFIX dct: <http://purl.org/dc/terms/>
 
     INSERT DATA {
+     GRAPH <http://mu.semte.ch/graphs/rollvolet> {
         ${sparqlEscapeUri(caseUri)} a dossier:Dossier ;
           mu:uuid ${sparqlEscapeString(caseId)} ;
           dct:identifier ${sparqlEscapeString(caseId)} .
+     }
     }
   `);
 
@@ -155,7 +177,9 @@ async function linkAttachmentToCase(attachmentUri, caseId) {
     PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
 
     INSERT DATA {
+     GRAPH <http://mu.semte.ch/graphs/rollvolet> {
         ${sparqlEscapeUri(caseUri)} dossier:Dossier.bestaatUit ${sparqlEscapeUri(attachmentUri)} .
+     }
     }
   `);
 }
