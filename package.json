@@ -1,6 +1,6 @@
 {
   "name": "ms-files-service",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Microservice to upload/download files to Microsoft Cloud on behalf of a user",
   "main": "app.js",
   "scripts": {
