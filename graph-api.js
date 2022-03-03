@@ -1,5 +1,5 @@
 import 'isomorphic-fetch';
-import { Client, LargeFileUploadTask, FileUpload } from "@microsoft/microsoft-graph-client";
+import { Client, LargeFileUploadTask, FileUpload } from '@microsoft/microsoft-graph-client';
 import MuAuthenticationProvider from './mu-authentication-provider';
 
 const MS_DRIVE_ID = process.env.MS_DRIVE_ID;
@@ -45,6 +45,7 @@ export default class GraphApiClient {
   async deleteFile(fileId) {
     try {
       await this.client.api(`/drives/${MS_DRIVE_ID}/items/${fileId}`).delete();
+      console.log(`Deleting file with id ${fileId} from drive ${MS_DRIVE_ID} succeeded.`);
     } catch (e) {
       console.log(`Failed to delete file with id ${fileId} from drive ${MS_DRIVE_ID}`);
       throw e;
