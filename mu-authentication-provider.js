@@ -1,5 +1,4 @@
-import { querySudo } from '@lblod/mu-auth-sudo';
-import { sparqlEscapeUri } from 'mu';
+import { query, sparqlEscapeUri } from 'mu';
 
 const SESSIONS_GRAPH = process.env.SESSIONS_GRAPH || 'http://mu.semte.ch/graphs/sessions';
 
@@ -13,10 +12,8 @@ export default class MuAuthenticationProvider {
 	 * This should return a Promise that resolves to an accessToken (in case of success)
    * or rejects with error (in case of failure)
 	 */
-  // TODO replace sudo query with regular mu-query
-  // since logged in users have access to their own session data.
   async getAccessToken(options) {
-    const queryResult = await querySudo(`
+    const queryResult = await query(`
       PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
       PREFIX oauth: <http://data.rollvolet.be/vocabularies/oauth-2.0/>
       SELECT ?accessToken

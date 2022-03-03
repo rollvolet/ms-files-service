@@ -1,3 +1,4 @@
+import httpContext from 'express-http-context';
 import { app, errorHandler } from 'mu';
 import fileUpload from 'express-fileupload';
 import { getSessionIdHeader, error } from './utils';
@@ -10,6 +11,18 @@ import {
 } from './sparql';
 
 app.use(fileUpload());
+
+// Copied from mu-javascript-template since the httpContext middleware
+// must be included  after the express-fileupload middleware.
+// If not, the express-fileupload breaks the httpContext. As a consequence,
+// mu-auth-allowed headers are not correctly set on SPARQL queries to database.
+app.use(httpContext.middleware);
+app.use(function(req, res, next) {
+  httpContext.set('request', req);
+  httpContext.set('response', res);
+  next();
+});
+// end copy from mu-javascript-template
 
 app.get('/me', async function(req, res, next) {
   const sessionUri = getSessionIdHeader(req);
