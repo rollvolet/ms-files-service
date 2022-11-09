@@ -3,7 +3,9 @@ import { sleep } from './utils';
 
 const BASE_URI = 'http://data.rollvolet.be';
 
-async function insertUploadedFile(file) {
+async function insertUploadedFile(file, caseId) {
+  const caseUri = `${BASE_URI}/cases/${caseId}`;
+
   const fileId = uuid();
   const fileUri = `${BASE_URI}/files/${fileId}`;
 
@@ -19,8 +21,10 @@ async function insertUploadedFile(file) {
     PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
     PREFIX dbpedia: <http://dbpedia.org/ontology/>
     PREFIX dct: <http://purl.org/dc/terms/>
+    PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
 
     INSERT DATA {
+      ${sparqlEscapeUri(caseUri)} dossier:Dossier.bestaatUit ${sparqlEscapeUri(fileUri)} .
       ${sparqlEscapeUri(fileUri)} a nfo:FileDataObject ;
         mu:uuid ${sparqlEscapeString(fileId)} ;
         nfo:fileName ${sparqlEscapeString(file.name)} ;
@@ -133,36 +137,8 @@ async function deleteFile(fileId) {
   `);
 }
 
-async function linkAttachmentToCase(attachmentUri, caseId) {
-  const caseUri = `${BASE_URI}/cases/${caseId}`;
-
-  // TODO remove insertion of dossier:Dossier triples once all cases
-  // from SQL are converted to triples
-  await update(`
-    PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
-    PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
-    PREFIX dct: <http://purl.org/dc/terms/>
-
-    INSERT DATA {
-        ${sparqlEscapeUri(caseUri)} a dossier:Dossier ;
-          mu:uuid ${sparqlEscapeString(caseId)} ;
-          dct:identifier ${sparqlEscapeString(caseId)} .
-    }
-  `);
-
-  await update(`
-    PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
-    PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
-
-    INSERT DATA {
-        ${sparqlEscapeUri(caseUri)} dossier:Dossier.bestaatUit ${sparqlEscapeUri(attachmentUri)} .
-    }
-  `);
-}
-
 export {
   insertUploadedFile,
   getMsFileId,
   deleteFile,
-  linkAttachmentToCase
 }

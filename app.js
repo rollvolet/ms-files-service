@@ -6,8 +6,7 @@ import GraphApiClient from './graph-api';
 import {
   insertUploadedFile,
   getMsFileId,
-  deleteFile,
-  linkAttachmentToCase
+  deleteFile
 } from './sparql';
 
 app.use(fileUpload());
@@ -50,8 +49,7 @@ app.post('/cases/:caseId/attachments', async function(req, res, next) {
     const caseId = req.params.caseId;
     const client = new GraphApiClient(sessionUri);
     const uploadedFile = await client.uploadCaseAttachment(caseId, req.files.file);
-    const file = await insertUploadedFile(uploadedFile);
-    await linkAttachmentToCase(file.uri, caseId);
+    const file = await insertUploadedFile(uploadedFile, caseId);
     return res.status(201).send({
       data: {
         id: file.id,
