@@ -3,8 +3,9 @@ import { sleep } from './utils';
 
 const BASE_URI = 'http://data.rollvolet.be';
 
-async function insertUploadedFile(file, caseId) {
-  const caseUri = `${BASE_URI}/cases/${caseId}`;
+async function insertUploadedFile(file, { case: _case, source, type }) {
+  const predicate = _case ? '^dossier:Dossier.bestaatUit' : 'prov:wasDerivedFrom';
+  const resourceId = [_case, source].find((r) => r?.id).id;
 
   const fileId = uuid();
   const fileUri = `${BASE_URI}/files/${fileId}`;
@@ -15,6 +16,8 @@ async function insertUploadedFile(file, caseId) {
   const msIdentifier = file.id;
   const extension = file.name.substr(file.name.lastIndexOf('.') + 1);
 
+  const typeStatement = type ? `dct:type ${sparqlEscapeUri(type)} ;` : '';
+
   await update(`
     PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
     PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
@@ -22,16 +25,18 @@ async function insertUploadedFile(file, caseId) {
     PREFIX dbpedia: <http://dbpedia.org/ontology/>
     PREFIX dct: <http://purl.org/dc/terms/>
     PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
+    PREFIX prov: <http://www.w3.org/ns/prov#>
 
-    INSERT DATA {
-      ${sparqlEscapeUri(caseUri)} dossier:Dossier.bestaatUit ${sparqlEscapeUri(fileUri)} .
+    INSERT {
       ${sparqlEscapeUri(fileUri)} a nfo:FileDataObject ;
         mu:uuid ${sparqlEscapeString(fileId)} ;
         nfo:fileName ${sparqlEscapeString(file.name)} ;
         dct:format ${sparqlEscapeString(file.format)} ;
         nfo:fileSize ${sparqlEscapeInt(file.size)} ;
         dbpedia:fileExtension ${sparqlEscapeString(extension)} ;
-        nfo:fileCreated ${sparqlEscapeDateTime(file.created)} .
+        nfo:fileCreated ${sparqlEscapeDateTime(file.created)} ;
+        ${typeStatement} ;
+        ${predicate} ?resource .
       ${sparqlEscapeUri(remoteFileUri)} a nfo:RemoteDataObject ;
         mu:uuid ${sparqlEscapeString(file.id)} ;
         nfo:fileName ${sparqlEscapeString(file.name)} ;
@@ -42,6 +47,8 @@ async function insertUploadedFile(file, caseId) {
         nfo:fileCreated ${sparqlEscapeDateTime(file.created)} ;
         nfo:fileUrl ${sparqlEscapeUri(file.url)} ;
         nie:dataSource ${sparqlEscapeUri(fileUri)} .
+    } WHERE {
+      ?resource mu:uuid ${sparqlEscapeString(resourceId)} .
     }
   `);
 
@@ -137,8 +144,39 @@ async function deleteFile(fileId) {
   `);
 }
 
+async function fetchInvoice(invoiceId) {
+  const result = await query(`
+    PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+    PREFIX p2poDocument: <https://purl.org/p2p-o/document#>
+    PREFIX p2poInvoice: <https://purl.org/p2p-o/invoice#>
+
+    SELECT ?invoice ?date ?number ?type
+    WHERE {
+      ?invoice a p2poDocument:E-Invoice, ?type ;
+        mu:uuid ${sparqlEscapeString(invoiceId)} ;
+        p2poInvoice:dateOfIssue ?date ;
+        p2poInvoice:invoiceNumber ?number .
+        FILTER (?type != p2poDocument:E-Invoice)
+    } LIMIT 1
+  `);
+
+  if (result.results.bindings.length) {
+    const binding = result.results.bindings[0];
+    return {
+      uri: binding['invoice'].value,
+      id: invoiceId,
+      date: new Date(Date.parse(binding['date'].value)),
+      number: binding['number'].value,
+      isDepositInvoice: binding['type'].value == 'https://purl.org/p2p-o/invoice#E-PrePaymentInvoice'
+    };
+  } else {
+    return null;
+  }
+}
+
 export {
   insertUploadedFile,
   getMsFileId,
   deleteFile,
+  fetchInvoice
 }

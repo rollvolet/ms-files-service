@@ -4,8 +4,6 @@ import MuAuthenticationProvider from './mu-authentication-provider';
 
 const MS_DRIVE_ID = process.env.MS_DRIVE_ID;
 
-const ATTACHMENTS_FOLDER = process.env.ATTACHMENTS_FOLDER || 'crm-development/attachments';
-
 /**
  * Client to interact with the MS Graph API. Requests are executed on behalf of a user.
  * The client uses the mu-authentication-provider which fetches an access-token from
@@ -25,18 +23,6 @@ export default class GraphApiClient {
     const response = await this.client.api('/me').get();
     console.log('Retrieved my profile');
     console.log(response);
-  }
-
-  /**
-   * Upload the given file as an attachment for the case with the given caseId.
-   * The file gets uploaded on the O365 drive in the configured ATTACHMENTS_FOLDER per case.
-  */
-  async uploadCaseAttachment(caseId, file) {
-    const filename = file.name; // TODO character espacing?
-    const filePath = `/${ATTACHMENTS_FOLDER}/${caseId}/${filename}`;
-    const fileObject = new FileUpload(file.data, file.name, file.size);
-    const uploadedFile = await this.uploadFile(filePath, fileObject);
-    return uploadedFile;
   }
 
   /**
@@ -66,9 +52,17 @@ export default class GraphApiClient {
   }
 
   /**
+   * Upload a file on the given path to the O365 drive.
+  */
+  uploadFile(path, filename, content, filesize) {
+    const fileObject = new FileUpload(content, filename, filesize);
+    return this.uploadFileObject(path, fileObject);
+  }
+
+  /**
    * @private
   */
-  async uploadFile(filePath, fileObject) {
+  async uploadFileObject(filePath, fileObject) {
     const url = `/drives/${MS_DRIVE_ID}/root:${filePath}:/createUploadSession`;
     const body = {
       item: {
