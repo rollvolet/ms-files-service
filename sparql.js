@@ -1,7 +1,11 @@
 import { query, update, sparqlEscapeUri, sparqlEscapeString, sparqlEscapeDateTime, sparqlEscapeInt, uuid } from 'mu';
+import { querySudo, updateSudo } from '@lblod/mu-auth-sudo';
 import { sleep } from './utils';
 
 const BASE_URI = 'http://data.rollvolet.be';
+
+const SESSIONS_GRAPH = process.env.SESSIONS_GRAPH || 'http://mu.semte.ch/graphs/sessions';
+const USERS_GRAPH = process.env.USERS_GRAPH || 'http://mu.semte.ch/graphs/users';
 
 async function insertUploadedFile(file, { case: _case, source, type }) {
   const predicate = _case ? '^dossier:Dossier.bestaatUit' : 'prov:wasDerivedFrom';
@@ -38,7 +42,7 @@ async function insertUploadedFile(file, { case: _case, source, type }) {
         ${typeStatement} ;
         ${predicate} ?resource .
       ${sparqlEscapeUri(remoteFileUri)} a nfo:RemoteDataObject ;
-        mu:uuid ${sparqlEscapeString(file.id)} ;
+        mu:uuid ${sparqlEscapeString(remoteFileId)} ;
         nfo:fileName ${sparqlEscapeString(file.name)} ;
         dct:format ${sparqlEscapeString(file.format)} ;
         dct:identifier ${sparqlEscapeString(msIdentifier)} ;
@@ -63,6 +67,52 @@ async function insertUploadedFile(file, { case: _case, source, type }) {
   };
 }
 
+
+async function moveUploadedFile(localFileUri, uploadedFile) {
+  const remoteFileId = uuid();
+  const remoteFileUri = `${BASE_URI}/files/${remoteFileId}`;
+
+  const msIdentifier = uploadedFile.id;
+  const extension = uploadedFile.name.substr(uploadedFile.name.lastIndexOf('.') + 1);
+
+  await updateSudo(`
+    PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+    PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
+    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
+    PREFIX dbpedia: <http://dbpedia.org/ontology/>
+    PREFIX dct: <http://purl.org/dc/terms/>
+
+    DELETE {
+      GRAPH ?g {
+        ${sparqlEscapeUri(localFileUri)} a nfo:FileDataObject ; ?p ?o .
+        ?virtualFile nfo:fileName ?fileName .
+      }
+    } INSERT {
+      GRAPH ?g {
+        ?virtualFile nfo:fileName ${sparqlEscapeString(uploadedFile.name)} ;
+        ${sparqlEscapeUri(remoteFileUri)} a nfo:RemoteDataObject ;
+          mu:uuid ${sparqlEscapeString(remoteFileId)} ;
+          nfo:fileName ${sparqlEscapeString(uploadedFile.name)} ;
+          dct:format ${sparqlEscapeString(uploadedFile.format)} ;
+          dct:identifier ${sparqlEscapeString(msIdentifier)} ;
+          nfo:fileSize ${sparqlEscapeInt(uploadedFile.size)} ;
+          dbpedia:fileExtension ${sparqlEscapeString(extension)} ;
+          nfo:fileCreated ${sparqlEscapeDateTime(uploadedFile.created)} ;
+          nfo:fileUrl ${sparqlEscapeUri(uploadedFile.url)} ;
+          nie:dataSource ?virtualFile .
+      }
+    } WHERE {
+      GRAPH ?g {
+        ${sparqlEscapeUri(localFileUri)} a nfo:FileDataObject ;
+          nie:dataSource ?virtualFile ;
+          ?p ?o .
+        ?virtualFile a nfo:FileDataObject ;
+          nfo:fileName ?fileName .
+      }
+    }
+  `);
+}
+
 async function getMsFileId(fileId) {
   const result = await query(`
     PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
@@ -79,6 +129,29 @@ async function getMsFileId(fileId) {
 
   if (result.results.bindings.length) {
     return result.results.bindings[0]['msFileId'].value;
+  } else {
+    return null;
+  }
+}
+
+async function getFileType(fileUri) {
+  const result = await querySudo(`
+    PREFIX dct: <http://purl.org/dc/terms/>
+    PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
+    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
+
+    SELECT ?type
+    WHERE {
+      GRAPH ?g {
+        ${sparqlEscapeUri(fileUri)} a nfo:FileDataObject ;
+          nie:dataSource ?virtualFile .
+        ?virtualFile dct:type ?type .
+      }
+    } LIMIT 1
+  `);
+
+  if (result.results.bindings.length) {
+    return result.results.bindings[0]['type'].value;
   } else {
     return null;
   }
@@ -174,9 +247,43 @@ async function fetchInvoice(invoiceId) {
   }
 }
 
+async function getActiveSessionForFileCreator(fileUri) {
+  const result = await querySudo(`
+    PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+    PREFIX muSession: <http://mu.semte.ch/vocabularies/session/>
+    PREFIX dct: <http://purl.org/dc/terms/>
+    PREFIX oauth: <http://data.rollvolet.be/vocabularies/oauth-2.0/>
+    PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+
+    SELECT ?session
+    WHERE {
+      GRAPH ?g {
+        ${sparqlEscapeUri(fileUri)} dct:creator ?user .
+      }
+      GRAPH ${sparqlEscapeUri(USERS_GRAPH)} {
+        ?user foaf:account ?account .
+      }
+      GRAPH ${sparqlEscapeUri(SESSIONS_GRAPH)} {
+        ?session muSession:account ?account .
+        ?oauthSession oauth:authenticates ?session ;
+                      oauth:tokenValue ?accessToken ;
+                      oauth:expirationDate ?expiration .
+        FILTER (?expiration >= ${sparqlEscapeDateTime(new Date())})
+      }
+    } LIMIT 1
+  `);
+
+  return result.results.bindings[0]?.['session']?.value;
+}
+
 export {
+  SESSIONS_GRAPH,
+  USERS_GRAPH,
   insertUploadedFile,
+  moveUploadedFile,
   getMsFileId,
+  getFileType,
   deleteFile,
-  fetchInvoice
+  fetchInvoice,
+  getActiveSessionForFileCreator
 }

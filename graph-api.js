@@ -1,4 +1,5 @@
 import 'isomorphic-fetch';
+import * as fs from 'node:fs/promises';
 import { Client, LargeFileUploadTask, FileUpload } from '@microsoft/microsoft-graph-client';
 import MuAuthenticationProvider from './mu-authentication-provider';
 
@@ -55,8 +56,18 @@ export default class GraphApiClient {
    * Upload a file on the given path to the O365 drive.
   */
   uploadFile(path, filename, content, filesize) {
+    const fullPath = `${path}/${filename}`;
     const fileObject = new FileUpload(content, filename, filesize);
-    return this.uploadFileObject(path, fileObject);
+    return this.uploadFileObject(fullPath, fileObject);
+  }
+
+  /**
+   * Upload a file from the local drive to a given path on the 0365 drive.
+   */
+  async uploadLocalFile(targetPath, targetName, localFile) {
+    const [content, stats] = await Promise.all([fs.readFile(localFile), fs.stat(localFile)]);
+    const size = stats.size;
+    return this.uploadFile(targetPath, targetName, content, size);
   }
 
   /**

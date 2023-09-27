@@ -1,6 +1,6 @@
-import { query, sparqlEscapeUri } from 'mu';
-
-const SESSIONS_GRAPH = process.env.SESSIONS_GRAPH || 'http://mu.semte.ch/graphs/sessions';
+import { sparqlEscapeUri } from 'mu';
+import { querySudo } from '@lblod/mu-auth-sudo';
+import { SESSIONS_GRAPH } from './sparql';
 
 export default class MuAuthenticationProvider {
   constructor(sessionUri) {
@@ -13,7 +13,7 @@ export default class MuAuthenticationProvider {
    * or rejects with error (in case of failure)
 	 */
   async getAccessToken(options) {
-    const queryResult = await query(`
+    const queryResult = await querySudo(`
       PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
       PREFIX oauth: <http://data.rollvolet.be/vocabularies/oauth-2.0/>
       SELECT ?accessToken
