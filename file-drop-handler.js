@@ -88,10 +88,17 @@ export default class FileDropHandler {
     const sessionUri = await getActiveSessionForFileCreator(fileUri);
     if (sessionUri) {
       const locations = await getUploadLocationsForFile(fileUri);
-      for (const { path: uploadPath, name: uploadName } of locations) {
+      for (let location of locations) {
+        const { path: uploadPath, name: uploadName } = location;
         const graphApiClient = new GraphApiClient(sessionUri);
-        const uploadedFile = await graphApiClient.uploadLocalFile(uploadPath, uploadName, file);
-        await moveUploadedFile(fileUri, uploadedFile);
+        const uploadedFile = await graphApiClient.uploadLocalFile(uploadPath, uploadName, file, {
+          conflictBehavior: 'replace'
+        });
+        if (locations[0] == location) {
+          // First location is considered the 'main' location.
+          // Other locations are just copies of the files that will not be tracked in the triplestore
+          await moveUploadedFile(fileUri, uploadedFile);
+        }
       }
     } else {
       throw new Error(`No active session with a valid access token found for creator of file ${fileUri}. Unable to upload the file to the cloud.`);

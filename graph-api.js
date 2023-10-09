@@ -55,29 +55,29 @@ export default class GraphApiClient {
   /**
    * Upload a file on the given path to the O365 drive.
   */
-  uploadFile(path, filename, content, filesize) {
+  uploadFile(path, filename, content, filesize, opts) {
     const fullPath = `${path}/${filename}`;
     const fileObject = new FileUpload(content, filename, filesize);
-    return this.uploadFileObject(fullPath, fileObject);
+    return this.uploadFileObject(fullPath, fileObject, opts);
   }
 
   /**
    * Upload a file from the local drive to a given path on the 0365 drive.
    */
-  async uploadLocalFile(targetPath, targetName, localFile) {
+  async uploadLocalFile(targetPath, targetName, localFile, opts) {
     const [content, stats] = await Promise.all([fs.readFile(localFile), fs.stat(localFile)]);
     const size = stats.size;
-    return this.uploadFile(targetPath, targetName, content, size);
+    return this.uploadFile(targetPath, targetName, content, size, opts);
   }
 
   /**
    * @private
   */
-  async uploadFileObject(filePath, fileObject) {
+  async uploadFileObject(filePath, fileObject, opts) {
     const url = `/drives/${MS_DRIVE_ID}/root:${filePath}:/createUploadSession`;
     const body = {
       item: {
-        '@microsoft.graph.conflictBehavior': 'rename'
+        '@microsoft.graph.conflictBehavior': opts?.conflictBehavior ?? 'rename' // one of 'fail', 'replace', 'rename'
       }
     };
     const uploadSession = await LargeFileUploadTask.createUploadSession(this.client, url, body);

@@ -20,6 +20,12 @@ export async function getUploadLocationsForType(type, opts) {
   }
 }
 
+/**
+ * Returns one or more locations a file with a given URI should be uploaded to.
+ * The location depends on the type of the file.
+ * Multiple locations may be returned. The first one is considered to be the 'main' location.
+ * Other locations are just copies of the same file and will not be tracked in the triplestore.
+*/
 export async function getUploadLocationsForFile(fileUri) {
   const type = await getFileType(fileUri);
   if (type == FILE_TYPES.INVOICE_ACCOUNTANCY_EXPORT) {

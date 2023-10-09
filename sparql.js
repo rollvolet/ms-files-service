@@ -91,7 +91,7 @@ async function moveUploadedFile(localFileUri, uploadedFile) {
       }
     } INSERT {
       GRAPH ?g {
-        ?virtualFile nfo:fileName ${sparqlEscapeString(uploadedFile.name)} ;
+        ?virtualFile nfo:fileName ${sparqlEscapeString(uploadedFile.name)} .
         ${sparqlEscapeUri(remoteFileUri)} a nfo:RemoteDataObject ;
           mu:uuid ${sparqlEscapeString(remoteFileId)} ;
           nfo:fileName ${sparqlEscapeString(uploadedFile.name)} ;
