@@ -8,7 +8,6 @@ const SESSIONS_GRAPH = process.env.SESSIONS_GRAPH || 'http://mu.semte.ch/graphs/
 const USERS_GRAPH = process.env.USERS_GRAPH || 'http://mu.semte.ch/graphs/users';
 
 async function insertUploadedFile(file, { case: _case, source, type }) {
-  const predicate = _case ? '^dossier:Dossier.bestaatUit' : 'prov:wasDerivedFrom';
   const resourceId = [_case, source].find((r) => r?.id).id;
 
   const fileId = uuid();
@@ -21,6 +20,9 @@ async function insertUploadedFile(file, { case: _case, source, type }) {
   const extension = file.name.substr(file.name.lastIndexOf('.') + 1);
 
   const typeStatement = type ? `dct:type ${sparqlEscapeUri(type)} ;` : '';
+  const originStatement = _case
+        ? `?resource dossier:Dossier.bestaatUit ${sparqlEscapeUri(fileUri)} .`
+        : `${sparqlEscapeUri(fileUri)} prov:wasDerivedFrom ?resource .`;
 
   await update(`
     PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
@@ -34,13 +36,13 @@ async function insertUploadedFile(file, { case: _case, source, type }) {
     INSERT {
       ${sparqlEscapeUri(fileUri)} a nfo:FileDataObject ;
         mu:uuid ${sparqlEscapeString(fileId)} ;
+        ${typeStatement}
         nfo:fileName ${sparqlEscapeString(file.name)} ;
         dct:format ${sparqlEscapeString(file.format)} ;
         nfo:fileSize ${sparqlEscapeInt(file.size)} ;
         dbpedia:fileExtension ${sparqlEscapeString(extension)} ;
-        nfo:fileCreated ${sparqlEscapeDateTime(file.created)} ;
-        ${typeStatement} ;
-        ${predicate} ?resource .
+        nfo:fileCreated ${sparqlEscapeDateTime(file.created)} .
+        ${originStatement}
       ${sparqlEscapeUri(remoteFileUri)} a nfo:RemoteDataObject ;
         mu:uuid ${sparqlEscapeString(remoteFileId)} ;
         nfo:fileName ${sparqlEscapeString(file.name)} ;
@@ -127,11 +129,7 @@ async function getMsFileId(fileId) {
     } LIMIT 1
   `);
 
-  if (result.results.bindings.length) {
-    return result.results.bindings[0]['msFileId'].value;
-  } else {
-    return null;
-  }
+  return result.results.bindings[0]?.['msFileId'].value;
 }
 
 async function getFileType(fileUri) {
@@ -150,11 +148,7 @@ async function getFileType(fileUri) {
     } LIMIT 1
   `);
 
-  if (result.results.bindings.length) {
-    return result.results.bindings[0]['type'].value;
-  } else {
-    return null;
-  }
+  return result.results.bindings[0]?.['type'].value;
 }
 
 async function deleteFile(fileId) {
@@ -247,6 +241,18 @@ async function fetchInvoice(invoiceId) {
   }
 }
 
+async function getCaseIdentifier(caseId) {
+  const result = await query(`
+    PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+    PREFIX dct: <http://purl.org/dc/terms/>
+
+    SELECT ?identifier
+    WHERE { ?case mu:uuid ${sparqlEscapeString(caseId)} ; dct:identifier ?identifier . }
+  `);
+
+  return result.results.bindings[0]?.['identifier'].value;
+}
+
 async function getActiveSessionForFileCreator(fileUri) {
   const result = await querySudo(`
     PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
@@ -285,5 +291,6 @@ export {
   getFileType,
   deleteFile,
   fetchInvoice,
+  getCaseIdentifier,
   getActiveSessionForFileCreator
 }
