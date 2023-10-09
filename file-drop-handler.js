@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import { existsSync, mkdirSync } from 'node:fs';
 import { getActiveSessionForFileCreator, moveUploadedFile } from './sparql';
-import { getUploadLocation } from './upload-location';
+import { getUploadLocationsForFile } from './upload-location';
 import GraphApiClient from './graph-api';
 
 const FILE_DROP_SYNC_INTERVAL_MS = parseInt(process.env.FILE_DROP_SYNC_INTERVAL_MS || '10000');
@@ -60,6 +60,7 @@ export default class FileDropHandler {
         } catch (e) {
           console.log(`Something went wrong while uploading file ${filePath}.`);
           console.log(`${e}`);
+          console.trace(e);
           console.log(`Going to ignore this one and continue processing the queue.`);
           const failurePath = filePath.replace(FILE_DROP_DIRECTORY, FAILED_DROP_DIRECTORY);
           await fs.rename(filePath, failurePath);
@@ -84,13 +85,14 @@ export default class FileDropHandler {
 
   async uploadFile(file) {
     const fileUri = file.replace(`${FILE_DROP_DIRECTORY}/`, 'share://');
-    const { path: uploadPath, name: uploadName } = await getUploadLocation(fileUri);
-
     const sessionUri = await getActiveSessionForFileCreator(fileUri);
     if (sessionUri) {
-      const graphApiClient = new GraphApiClient(sessionUri);
-      const uploadedFile = await graphApiClient.uploadLocalFile(uploadPath, uploadName, file);
-      await moveUploadedFile(fileUri, uploadedFile);
+      const locations = await getUploadLocationsForFile(fileUri);
+      for (const { path: uploadPath, name: uploadName } of locations) {
+        const graphApiClient = new GraphApiClient(sessionUri);
+        const uploadedFile = await graphApiClient.uploadLocalFile(uploadPath, uploadName, file);
+        await moveUploadedFile(fileUri, uploadedFile);
+      }
     } else {
       throw new Error(`No active session with a valid access token found for creator of file ${fileUri}. Unable to upload the file to the cloud.`);
     }

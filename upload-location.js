@@ -11,15 +11,25 @@ export async function getUploadLocation(fileUri) {
   const type = await getFileType(fileUri);
   let path, name = null;
 
+export async function getUploadLocationsForFile(fileUri) {
+  const type = await getFileType(fileUri);
   if (type == FILE_TYPES.INVOICE_ACCOUNTANCY_EXPORT) {
-    path = ACCOUNTANCY_EXPORT_DIR;
-    name = 'ACT.csv';
+    const timestamp = new Date().toISOString()
+          .substr(0, 'yyyy-MM-DDTHH:mm:ss'.length)
+          .replaceAll(/[^0-9]/g, '');
+    return [
+      { path: ACCOUNTANCY_EXPORT_DIR, name: 'ACT.csv' },
+      { path: ACCOUNTANCY_EXPORT_DIR, name: `${timestamp}-ACT.csv` }
+    ];
   } else if (type == FILE_TYPES.CUSTOMER_ACCOUNTANCY_EXPORT) {
-    path = ACCOUNTANCY_EXPORT_DIR;
-    name = 'CSF.csv';
+    const timestamp = new Date().toISOString()
+          .substr(0, 'yyyy-MM-DDTHH:mm:ss'.length)
+          .replaceAll(/[^0-9]/g, '');
+    return [
+      { path: ACCOUNTANCY_EXPORT_DIR, name: 'CSF.csv' },
+      { path: ACCOUNTANCY_EXPORT_DIR, name: `${timestamp}-CSF.csv` }
+    ];
   } else {
     throw new Error(`Upload location not yet implemented for file type '${type}'`);
   }
-
-  return { path, name };
 }
