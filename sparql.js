@@ -241,18 +241,6 @@ async function fetchInvoice(invoiceId) {
   }
 }
 
-async function getCaseIdentifier(caseId) {
-  const result = await query(`
-    PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
-    PREFIX dct: <http://purl.org/dc/terms/>
-
-    SELECT ?identifier
-    WHERE { ?case mu:uuid ${sparqlEscapeString(caseId)} ; dct:identifier ?identifier . }
-  `);
-
-  return result.results.bindings[0]?.['identifier'].value;
-}
-
 async function getActiveSessionForFileCreator(fileUri) {
   const result = await querySudo(`
     PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
@@ -291,6 +279,5 @@ export {
   getFileType,
   deleteFile,
   fetchInvoice,
-  getCaseIdentifier,
   getActiveSessionForFileCreator
 }
