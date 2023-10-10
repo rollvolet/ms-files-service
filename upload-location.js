@@ -3,12 +3,14 @@ import { query, sparqlEscapeString, sparqlEscapeUri } from 'mu';
 import { querySudo } from '@lblod/mu-auth-sudo';
 
 const VISIT_REPORT_DIR = process.env.VISIT_REPORT_DIR || '/crm-development/visit-reports';
+const INTERVENTION_REPORT_DIR = process.env.VISIT_REPORT_DIR || '/crm-development/intervention-reports';
 const INVOICE_DIR = process.env.INVOICE_DIR || '/crm-development/invoices';
 const CASE_ATTACHMENT_DIR = process.env.CASE_ATTACHMENT_DIR || '/crm-development/attachments';
 const ACCOUNTANCY_EXPORT_DIR = process.env.ACCOUNTANCY_EXPORT_DIR || '/crm-development/winbooks';
 
 export const FILE_TYPES = {
   VISIT_REPORT: 'http://data.rollvolet.be/concepts/f5b9c371-a0ed-4476-90a1-3e73d5d4f09e',
+  INTERVENTION_REPORT: 'http://data.rollvolet.be/concepts/5d7f3d76-b78e-4481-ba66-89879ea1b3eb',
   DEPOSIT_INVOICE: 'http://data.rollvolet.be/concepts/5c93373f-30f3-454c-8835-15140ff6d1d4',
   INVOICE: 'http://data.rollvolet.be/concepts/3abc9905-29b9-47f2-a77d-e94a4025f8c3',
   CASE_ATTACHMENT: 'http://data.rollvolet.be/concepts/44e7a6a6-b0e6-4a9c-ae4c-1f66275f730d',
@@ -39,6 +41,11 @@ export async function getUploadLocationsForFile(fileUri) {
     const { year, number } = await getVisitReportInfo(fileUri);
     return [
       { path: `${VISIT_REPORT_DIR}/${year}`, name: `AD${number}.pdf`}
+    ];
+  } else if (type == FILE_TYPES.INTERVENTION_REPORT) {
+    const { year, number } = await getInterventionReportInfo(fileUri);
+    return [
+      { path: `${INTERVENTION_REPORT_DIR}/${year}`, name: `IR${number}.pdf`}
     ];
   } else if (type == FILE_TYPES.INVOICE || type == FILE_TYPES.DEPOSIT_INVOICE) {
     const { year, number } = await getInvoiceInfo(fileUri);
@@ -83,12 +90,13 @@ async function getVisitReportInfo(fileUri) {
   const result = await querySudo(`
     PREFIX prov: <http://www.w3.org/ns/prov#>
     PREFIX dct: <http://purl.org/dc/terms/>
+    PREFIX schema: <http://schema.org/>
     PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
 
     SELECT ?number ?year
     WHERE {
       ${sparqlEscapeUri(fileUri)} nie:dataSource/prov:wasDerivedFrom ?request .
-      ?request dct:identifier ?number ;
+      ?request schema:identifier ?number ;
         dct:issued ?date .
       BIND (YEAR(?date) as ?year)
     } LIMIT 1
@@ -104,6 +112,8 @@ async function getVisitReportInfo(fileUri) {
     return {};
   }
 }
+
+const getInterventionReportInfo = getVisitReportInfo;
 
 async function getInvoiceInfo(fileUri) {
   const result = await querySudo(`
