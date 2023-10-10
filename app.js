@@ -3,7 +3,6 @@ import { app, errorHandler } from 'mu';
 import fileUpload from 'express-fileupload';
 import { getSessionIdHeader, error } from './utils';
 import { FILE_TYPES, getUploadLocationsForType } from './upload-location';
-import { getInvoiceFilePath } from './file-storage';
 import GraphApiClient from './graph-api';
 import FileDropHandler from './file-drop-handler';
 import {
@@ -44,44 +43,6 @@ app.get('/me', async function(req, res, next) {
     const client = new GraphApiClient(sessionUri);
     await client.me();
     return res.status(204).send();
-  } catch(e) {
-    console.trace(e);
-    return next(new Error(e.message));
-  }
-});
-
-app.post('/invoices/:id/files', async function(req, res, next) {
-  const sessionUri = getSessionIdHeader(req);
-  if (!sessionUri)
-    return next(new Error('Session header is missing'));
-  if (!req.files.file)
-    return next(new Error('File parameter is missing'));
-
-  try {
-    const invoiceId = req.params.id;
-    const invoice = await fetchInvoice(invoiceId);
-    const client = new GraphApiClient(sessionUri);
-    const { data, size } = req.files.file;
-    const { path, name: fileName } = getInvoiceFilePath(invoice);
-    const uploadedFile = await client.uploadFile(path, fileName, data, size);
-    const file = await insertUploadedFile(uploadedFile, {
-      source: invoice,
-      type: invoice.isDepositInvoice ? DOCUMENT_TYPES.DEPOSIT_INVOICE : DOCUMENT_TYPES.INVOICE
-    });
-    return res.status(201).send({
-      data: {
-        id: file.id,
-        type: 'files',
-        attributes: {
-          uri: file.uri,
-          name: file.name,
-          format: file.format,
-          size: file.size,
-          extension: file.extension,
-          created: file.created.toISOString()
-        }
-      }
-    });
   } catch(e) {
     console.trace(e);
     return next(new Error(e.message));
