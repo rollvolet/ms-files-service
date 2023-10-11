@@ -58,6 +58,11 @@ export async function getUploadLocationsForFile(fileUri) {
     return [
       { path: `${OFFER_DIR}/${year}`, name: `AD${number}_${version}.pdf`}
     ];
+  } else if (type == FILE_TYPES.ORDER) {
+    const { year, number } = await getOrderInfo(fileUri);
+    return [
+      { path: `${ORDER_DIR}/${year}`, name: `AD${number}.pdf`}
+    ];
   } else if (type == FILE_TYPES.INVOICE || type == FILE_TYPES.DEPOSIT_INVOICE) {
     const { year, number } = await getInvoiceInfo(fileUri);
     const normalizedNumber = `${number}`.padStart(7, 0);
@@ -153,6 +158,37 @@ async function getOfferInfo(fileUri) {
       number: binding['number'].value,
       year: binding['year'].value,
       version: binding['version'].value
+    };
+  } else {
+    return {};
+  }
+}
+
+async function getOrderInfo(fileUri) {
+  const result = await querySudo(`
+    PREFIX prov: <http://www.w3.org/ns/prov#>
+    PREFIX dct: <http://purl.org/dc/terms/>
+    PREFIX schema: <http://schema.org/>
+    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
+    PREFIX owl: <http://www.w3.org/2002/07/owl#>
+    PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+
+    SELECT ?number ?year
+    WHERE {
+      ${sparqlEscapeUri(fileUri)} nie:dataSource/prov:wasDerivedFrom ?order .
+      ?case ext:order ?order ;
+        ext:request ?request .
+      ?order dct:issued ?date .
+      ?request schema:identifier ?number .
+      BIND (YEAR(?date) as ?year)
+    } LIMIT 1
+  `);
+
+  if (result.results.bindings.length) {
+    const binding = result.results.bindings[0];
+    return {
+      number: binding['number'].value,
+      year: binding['year'].value
     };
   } else {
     return {};
