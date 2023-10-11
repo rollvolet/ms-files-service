@@ -3,7 +3,10 @@ import { query, sparqlEscapeString, sparqlEscapeUri } from 'mu';
 import { querySudo } from '@lblod/mu-auth-sudo';
 
 const VISIT_REPORT_DIR = process.env.VISIT_REPORT_DIR || '/crm-development/visit-reports';
-const INTERVENTION_REPORT_DIR = process.env.VISIT_REPORT_DIR || '/crm-development/intervention-reports';
+const INTERVENTION_REPORT_DIR = process.env.INTERVENTION_REPORT_DIR || '/crm-development/intervention-reports';
+const OFFER_DIR = process.env.OFFER_DIR || '/crm-development/offers';
+const ORDER_DIR = process.env.ORDER_DIR || '/crm-development/orders';
+const DELIVERY_NOTE_DIR = process.env.DELIVERY_NOTE_DIR || '/crm-development/delivery-notes';
 const INVOICE_DIR = process.env.INVOICE_DIR || '/crm-development/invoices';
 const CASE_ATTACHMENT_DIR = process.env.CASE_ATTACHMENT_DIR || '/crm-development/attachments';
 const ACCOUNTANCY_EXPORT_DIR = process.env.ACCOUNTANCY_EXPORT_DIR || '/crm-development/winbooks';
@@ -11,6 +14,9 @@ const ACCOUNTANCY_EXPORT_DIR = process.env.ACCOUNTANCY_EXPORT_DIR || '/crm-devel
 export const FILE_TYPES = {
   VISIT_REPORT: 'http://data.rollvolet.be/concepts/f5b9c371-a0ed-4476-90a1-3e73d5d4f09e',
   INTERVENTION_REPORT: 'http://data.rollvolet.be/concepts/5d7f3d76-b78e-4481-ba66-89879ea1b3eb',
+  OFFER: 'http://data.rollvolet.be/concepts/51577f19-9d90-4abf-a0d2-187770f76fc9',
+  ORDER: 'http://data.rollvolet.be/concepts/6d080a6b-41f1-45f1-9698-7cbd3c846494',
+  DELIVERY_NOTE: 'http://data.rollvolet.be/concepts/dcf1aa80-6b1b-4423-8ce1-4df7ffe85684',
   DEPOSIT_INVOICE: 'http://data.rollvolet.be/concepts/5c93373f-30f3-454c-8835-15140ff6d1d4',
   INVOICE: 'http://data.rollvolet.be/concepts/3abc9905-29b9-47f2-a77d-e94a4025f8c3',
   CASE_ATTACHMENT: 'http://data.rollvolet.be/concepts/44e7a6a6-b0e6-4a9c-ae4c-1f66275f730d',
@@ -46,6 +52,11 @@ export async function getUploadLocationsForFile(fileUri) {
     const { year, number } = await getInterventionReportInfo(fileUri);
     return [
       { path: `${INTERVENTION_REPORT_DIR}/${year}`, name: `IR${number}.pdf`}
+    ];
+  } else if (type == FILE_TYPES.OFFER) {
+    const { year, number, version } = await getOfferInfo(fileUri);
+    return [
+      { path: `${OFFER_DIR}/${year}`, name: `AD${number}_${version}.pdf`}
     ];
   } else if (type == FILE_TYPES.INVOICE || type == FILE_TYPES.DEPOSIT_INVOICE) {
     const { year, number } = await getInvoiceInfo(fileUri);
@@ -114,6 +125,39 @@ async function getVisitReportInfo(fileUri) {
 }
 
 const getInterventionReportInfo = getVisitReportInfo;
+
+async function getOfferInfo(fileUri) {
+  const result = await querySudo(`
+    PREFIX prov: <http://www.w3.org/ns/prov#>
+    PREFIX dct: <http://purl.org/dc/terms/>
+    PREFIX schema: <http://schema.org/>
+    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
+    PREFIX owl: <http://www.w3.org/2002/07/owl#>
+    PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+
+    SELECT ?number ?year ?version
+    WHERE {
+      ${sparqlEscapeUri(fileUri)} nie:dataSource/prov:wasDerivedFrom ?offer .
+      ?case ext:offer ?offer ;
+        ext:request ?request .
+      ?offer dct:issued ?date ;
+        owl:versionInfo ?version .
+      ?request schema:identifier ?number .
+      BIND (YEAR(?date) as ?year)
+    } LIMIT 1
+  `);
+
+  if (result.results.bindings.length) {
+    const binding = result.results.bindings[0];
+    return {
+      number: binding['number'].value,
+      year: binding['year'].value,
+      version: binding['version'].value
+    };
+  } else {
+    return {};
+  }
+}
 
 async function getInvoiceInfo(fileUri) {
   const result = await querySudo(`
