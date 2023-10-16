@@ -8,7 +8,7 @@ Add the following snippet to your `docker-compose.yml` to include the files serv
 
 ```yml
 files:
-  image: rollvolet/ms-files-service:0.1.0
+  image: rollvolet/ms-files-service
   environment:
     MS_DRIVE_ID: "my-microsoft-drive-id"
 ```
