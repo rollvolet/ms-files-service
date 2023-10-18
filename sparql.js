@@ -132,25 +132,6 @@ async function getMsFileId(fileId) {
   return result.results.bindings[0]?.['msFileId'].value;
 }
 
-async function getFileType(fileUri) {
-  const result = await querySudo(`
-    PREFIX dct: <http://purl.org/dc/terms/>
-    PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
-    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
-
-    SELECT ?type
-    WHERE {
-      GRAPH ?g {
-        ${sparqlEscapeUri(fileUri)} a nfo:FileDataObject ;
-          nie:dataSource ?virtualFile .
-        ?virtualFile dct:type ?type .
-      }
-    } LIMIT 1
-  `);
-
-  return result.results.bindings[0]?.['type'].value;
-}
-
 async function deleteFile(fileId) {
   // Remove file as attachment from case (if relation exists)
   await update(`
@@ -276,7 +257,6 @@ export {
   insertUploadedFile,
   moveUploadedFile,
   getMsFileId,
-  getFileType,
   deleteFile,
   fetchInvoice,
   getActiveSessionForFileCreator

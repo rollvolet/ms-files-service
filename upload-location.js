@@ -1,4 +1,3 @@
-import { getFileType } from './sparql';
 import { query, sparqlEscapeString, sparqlEscapeUri } from 'mu';
 import { querySudo } from '@lblod/mu-auth-sudo';
 
@@ -24,64 +23,150 @@ export const FILE_TYPES = {
   CUSTOMER_ACCOUNTANCY_EXPORT: 'http://data.rollvolet.be/concepts/7afecda8-f128-4043-a69c-a68cbaaedac5'
 };
 
-export async function getUploadLocationsForType(type, opts) {
-  if (type == FILE_TYPES.CASE_ATTACHMENT) {
-    const caseIdentifier = await getCaseIdentifier(opts.case.id);
-    return [
-      { path: `${CASE_ATTACHMENT_DIR}/${caseIdentifier}`, name: opts.filename },
-    ];
-  } else {
-    throw new Error(`Upload location not yet implemented for file type '${type}'`);
-  }
-}
-
 /**
- * Returns one or more locations a file with a given URI should be uploaded to.
+ * Returns one or more locations a file with a given type should be uploaded to.
  * The location depends on the type of the file.
  * Multiple locations may be returned. The first one is considered to be the 'main' location.
  * Other locations are just copies of the same file and will not be tracked in the triplestore.
 */
-export async function getUploadLocationsForFile(fileUri) {
-  const type = await getFileType(fileUri);
-  if (type == FILE_TYPES.VISIT_REPORT) {
-    const { year, number } = await getVisitReportInfo(fileUri);
-    return [
-      { path: `${VISIT_REPORT_DIR}/${year}`, name: `AD${number}.pdf`}
-    ];
-  } else if (type == FILE_TYPES.INTERVENTION_REPORT) {
-    const { year, number } = await getInterventionReportInfo(fileUri);
-    return [
-      { path: `${INTERVENTION_REPORT_DIR}/${year}`, name: `IR${number}.pdf`}
-    ];
-  } else if (type == FILE_TYPES.OFFER) {
-    const { year, number, version } = await getOfferInfo(fileUri);
-    return [
-      { path: `${OFFER_DIR}/${year}`, name: `AD${number}_${version}.pdf`}
-    ];
-  } else if (type == FILE_TYPES.ORDER) {
-    const { year, number } = await getOrderInfo(fileUri);
-    return [
-      { path: `${ORDER_DIR}/${year}`, name: `AD${number}.pdf`}
-    ];
-  } else if (type == FILE_TYPES.INVOICE || type == FILE_TYPES.DEPOSIT_INVOICE) {
-    const { year, number } = await getInvoiceInfo(fileUri);
-    const normalizedNumber = `${number}`.padStart(7, 0);
-    return [
-      { path: `${INVOICE_DIR}/${year}`, name: `F${normalizedNumber}.pdf`}
-    ];
-  } else if (type == FILE_TYPES.INVOICE_ACCOUNTANCY_EXPORT) {
-    return [
+export async function getUploadLocations(type, opts) {
+  let optionsFn, pathFn = () => {};
+
+  if (type == FILE_TYPES.CASE_ATTACHMENT) {
+    optionsFn = async (opts) => {
+      const result = await query(`
+        PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+        PREFIX dct: <http://purl.org/dc/terms/>
+
+        SELECT ?identifier
+        WHERE { ?case mu:uuid ${sparqlEscapeString(opts.case.id)} ; dct:identifier ?identifier . }
+      `);
+
+      return { identifier: result.results.bindings[0]?.['identifier'].value, filename: opts.filename };
+    };
+    pathFn = (opts) => [ { path: `${CASE_ATTACHMENT_DIR}/${opts.identifier}`, name: opts.filename } ];
+  }
+
+  else if (type == FILE_TYPES.VISIT_REPORT) {
+    optionsFn = async (opts) => {
+      return queryOne(`
+        PREFIX dct: <http://purl.org/dc/terms/>
+        PREFIX schema: <http://schema.org/>
+
+        SELECT ?number ?year
+        WHERE {
+          ${sparqlEscapeUri(opts.resource)} schema:identifier ?number ;
+            dct:issued ?date .
+          BIND (YEAR(?date) as ?year)
+        } LIMIT 1
+      `);
+    };
+    pathFn = (opts) => [ { path: `${VISIT_REPORT_DIR}/${opts.year}`, name: `AD${opts.number}.pdf`} ];
+  }
+
+  else if (type == FILE_TYPES.INTERVENTION_REPORT) {
+    optionsFn = async (opts) => {
+      return queryOne(`
+        PREFIX dct: <http://purl.org/dc/terms/>
+        PREFIX schema: <http://schema.org/>
+
+        SELECT ?number ?year
+        WHERE {
+          ${sparqlEscapeUri(opts.resource)} schema:identifier ?number ;
+            dct:issued ?date .
+          BIND (YEAR(?date) as ?year)
+        } LIMIT 1
+      `);
+    };
+    pathFn = (opts) => [ { path: `${INTERVENTION_REPORT_DIR}/${opts.year}`, name: `IR${opts.number}.pdf`} ];
+  }
+
+  else if (type == FILE_TYPES.OFFER) {
+    optionsFn = async (opts) => {
+      return queryOne(`
+        PREFIX dct: <http://purl.org/dc/terms/>
+        PREFIX schema: <http://schema.org/>
+        PREFIX owl: <http://www.w3.org/2002/07/owl#>
+        PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+
+        SELECT ?number ?year ?version
+        WHERE {
+          ?case ext:offer ${sparqlEscapeUri(opts.resource)} ;
+            ext:request ?request .
+          ${sparqlEscapeUri(opts.resource)} dct:issued ?date ;
+            owl:versionInfo ?version .
+          ?request schema:identifier ?number .
+          BIND (YEAR(?date) as ?year)
+        } LIMIT 1
+      `);
+    };
+    pathFn = (opts) => [ { path: `${OFFER_DIR}/${opts.year}`, name: `AD${opts.number}_${opts.version}.pdf`} ];
+  }
+
+  else if (type == FILE_TYPES.ORDER) {
+    optionsFn = async (opts) => {
+      return queryOne(`
+        PREFIX dct: <http://purl.org/dc/terms/>
+        PREFIX schema: <http://schema.org/>
+        PREFIX owl: <http://www.w3.org/2002/07/owl#>
+        PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+
+        SELECT ?number ?year ?version
+        WHERE {
+          ?case ext:order ${sparqlEscapeUri(opts.resource)} ;
+            ext:request ?request .
+          ${sparqlEscapeUri(opts.resource)} dct:issued ?date .
+          ?request schema:identifier ?number .
+          BIND (YEAR(?date) as ?year)
+        } LIMIT 1
+      `);
+    };
+    pathFn = (opts) => [ { path: `${ORDER_DIR}/${opts.year}`, name: `AD${opts.number}.pdf`} ];
+  }
+
+  else if (type == FILE_TYPES.INVOICE || type == FILE_TYPES.DEPOSIT_INVOICE) {
+    optionsFn = async (opts) => {
+      const result = queryOne(`
+        PREFIX p2poInvoice: <https://purl.org/p2p-o/invoice#>
+
+        SELECT ?number ?year
+        WHERE {
+          ${sparqlEscapeUri(opts.resource)} p2poInvoice:invoiceNumber ?number ;
+            p2poInvoice:dateOfIssue ?date .
+          BIND (YEAR(?date) as ?year)
+        } LIMIT 1
+      `);
+      result['number'] = `${result['number']}`.padStart(7, 0); // normalize invoice number
+      return result;
+    };
+    pathFn = (opts) => [ { path: `${INVOICE_DIR}/${opts.year}`, name: `F${opts.number}.pdf`} ];
+  }
+
+  else if (type == FILE_TYPES.INVOICE_ACCOUNTANCY_EXPORT) {
+    pathFn = () => [
       { path: ACCOUNTANCY_EXPORT_DIR, name: 'ACT.csv' },
       { path: ACCOUNTANCY_EXPORT_DIR, name: `${timestamp()}-ACT.csv` }
     ];
-  } else if (type == FILE_TYPES.CUSTOMER_ACCOUNTANCY_EXPORT) {
-    return [
+  }
+
+  else if (type == FILE_TYPES.CUSTOMER_ACCOUNTANCY_EXPORT) {
+    pathFn = () => [
       { path: ACCOUNTANCY_EXPORT_DIR, name: 'CSF.csv' },
       { path: ACCOUNTANCY_EXPORT_DIR, name: `${timestamp()}-CSF.csv` }
     ];
-  } else {
-    throw new Error(`Upload location not yet implemented for file <${fileUri}> with type '${type}'`);
   }
+
+  else {
+    throw new Error(`Upload location not yet implemented for file type '${type}'`);
+  }
+
+  const pathOpts = await optionsFn(opts);
+  return pathFn(pathOpts);
+}
+
+export async function getUploadLocationsForFile(fileUri) {
+  const { type, resource } = await getFileType(fileUri);
+  return getUploadLocations(type, { resource });
 }
 
 function timestamp(date = new Date()) {
@@ -90,133 +175,34 @@ function timestamp(date = new Date()) {
     .replaceAll(/[^0-9]/g, '');
 }
 
-async function getCaseIdentifier(caseId) {
-  const result = await query(`
-    PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
-    PREFIX dct: <http://purl.org/dc/terms/>
-
-    SELECT ?identifier
-    WHERE { ?case mu:uuid ${sparqlEscapeString(caseId)} ; dct:identifier ?identifier . }
-  `);
-
-  return result.results.bindings[0]?.['identifier'].value;
-}
-
-async function getVisitReportInfo(fileUri) {
-  const result = await querySudo(`
-    PREFIX prov: <http://www.w3.org/ns/prov#>
-    PREFIX dct: <http://purl.org/dc/terms/>
-    PREFIX schema: <http://schema.org/>
-    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
-
-    SELECT ?number ?year
-    WHERE {
-      ${sparqlEscapeUri(fileUri)} nie:dataSource/prov:wasDerivedFrom ?request .
-      ?request schema:identifier ?number ;
-        dct:issued ?date .
-      BIND (YEAR(?date) as ?year)
-    } LIMIT 1
-  `);
-
-  if (result.results.bindings.length) {
-    const binding = result.results.bindings[0];
-    return {
-      number: binding['number'].value,
-      year: binding['year'].value
-    };
+async function queryOne(q) {
+  const { results } = await querySudo(q);
+  if (results.bindings.length) {
+    const binding = results.bindings[0];
+    const result = {};
+    for (let key of Object.keys(binding)) {
+      result[key] = binding[key]?.value;
+    }
+    return result;
   } else {
-    return {};
+    return null;
   }
 }
 
-const getInterventionReportInfo = getVisitReportInfo;
-
-async function getOfferInfo(fileUri) {
-  const result = await querySudo(`
-    PREFIX prov: <http://www.w3.org/ns/prov#>
+async function getFileType(fileUri) {
+  return queryOne(`
     PREFIX dct: <http://purl.org/dc/terms/>
-    PREFIX schema: <http://schema.org/>
+    PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>
     PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
-    PREFIX owl: <http://www.w3.org/2002/07/owl#>
-    PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
 
-    SELECT ?number ?year ?version
+    SELECT ?type ?resource
     WHERE {
-      ${sparqlEscapeUri(fileUri)} nie:dataSource/prov:wasDerivedFrom ?offer .
-      ?case ext:offer ?offer ;
-        ext:request ?request .
-      ?offer dct:issued ?date ;
-        owl:versionInfo ?version .
-      ?request schema:identifier ?number .
-      BIND (YEAR(?date) as ?year)
+      GRAPH ?g {
+        ${sparqlEscapeUri(fileUri)} a nfo:FileDataObject ;
+          nie:dataSource ?virtualFile .
+        ?virtualFile dct:type ?type .
+        OPTIONAL { ?virtualFile prov:wasDerivedFrom ?resource . }
+      }
     } LIMIT 1
   `);
-
-  if (result.results.bindings.length) {
-    const binding = result.results.bindings[0];
-    return {
-      number: binding['number'].value,
-      year: binding['year'].value,
-      version: binding['version'].value
-    };
-  } else {
-    return {};
-  }
-}
-
-async function getOrderInfo(fileUri) {
-  const result = await querySudo(`
-    PREFIX prov: <http://www.w3.org/ns/prov#>
-    PREFIX dct: <http://purl.org/dc/terms/>
-    PREFIX schema: <http://schema.org/>
-    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
-    PREFIX owl: <http://www.w3.org/2002/07/owl#>
-    PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
-
-    SELECT ?number ?year
-    WHERE {
-      ${sparqlEscapeUri(fileUri)} nie:dataSource/prov:wasDerivedFrom ?order .
-      ?case ext:order ?order ;
-        ext:request ?request .
-      ?order dct:issued ?date .
-      ?request schema:identifier ?number .
-      BIND (YEAR(?date) as ?year)
-    } LIMIT 1
-  `);
-
-  if (result.results.bindings.length) {
-    const binding = result.results.bindings[0];
-    return {
-      number: binding['number'].value,
-      year: binding['year'].value
-    };
-  } else {
-    return {};
-  }
-}
-
-async function getInvoiceInfo(fileUri) {
-  const result = await querySudo(`
-    PREFIX prov: <http://www.w3.org/ns/prov#>
-    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
-    PREFIX p2poInvoice: <https://purl.org/p2p-o/invoice#>
-
-    SELECT ?number ?year
-    WHERE {
-      ${sparqlEscapeUri(fileUri)} nie:dataSource/prov:wasDerivedFrom ?invoice .
-      ?invoice p2poInvoice:invoiceNumber ?number ;
-        p2poInvoice:dateOfIssue ?date .
-      BIND (YEAR(?date) as ?year)
-    } LIMIT 1
-  `);
-
-  if (result.results.bindings.length) {
-    const binding = result.results.bindings[0];
-    return {
-      number: binding['number'].value,
-      year: binding['year'].value
-    };
-  } else {
-    return {};
-  }
 }

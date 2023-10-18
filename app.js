@@ -2,7 +2,7 @@ import httpContext from 'express-http-context';
 import { app, errorHandler } from 'mu';
 import fileUpload from 'express-fileupload';
 import { getSessionIdHeader, error } from './utils';
-import { FILE_TYPES, getUploadLocationsForType } from './upload-location';
+import { FILE_TYPES, getUploadLocations } from './upload-location';
 import GraphApiClient from './graph-api';
 import FileDropHandler from './file-drop-handler';
 import {
@@ -60,9 +60,9 @@ app.post('/cases/:caseId/attachments', async function(req, res, next) {
     const caseId = req.params.caseId;
     const client = new GraphApiClient(sessionUri);
     const { data, size, name } = req.files.file;
-    const [{ path, name: fileName }] = await getUploadLocationsForType(FILE_TYPES.CASE_ATTACHMENT, {
+    const [{ path, name: fileName }] = await getUploadLocations(FILE_TYPES.CASE_ATTACHMENT, {
       case: { id: caseId },
-      filename: name,
+      fileName: name,
     });
     const uploadedFile = await client.uploadFile(path, fileName, data, size);
     const file = await insertUploadedFile(uploadedFile, {
@@ -130,6 +130,28 @@ app.get('/files/:id/download', async function(req, res, next) {
       return res.location(downloadUrl).status(204).send();
     } else {
       console.log(`No MS fileId found in triplestore for file with id ${fileId}`);
+      return res.status(404).send();
+    }
+  } catch(e) {
+    console.trace(e);
+    return next(new Error(e.message));
+  }
+});
+
+app.get('/downloads', async function(req, res, next) {
+  const sessionUri = getSessionIdHeader(req);
+  if (!sessionUri)
+    return next(new Error('Session header is missing'));
+
+  try {
+    const resource = req.query.resource;
+    const documentType = req.query.type;
+    const [{ path, name }] = await getUploadLocations(documentType, { resource });
+    const client = new GraphApiClient(sessionUri);
+    const downloadUrl = await client.getDownloadUrlByFilePath(path, name);
+    if (downloadUrl) {
+      return res.location(downloadUrl).status(204).send();
+    } else {
       return res.status(404).send();
     }
   } catch(e) {

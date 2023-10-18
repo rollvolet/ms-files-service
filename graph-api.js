@@ -47,8 +47,33 @@ export default class GraphApiClient {
       const response = await this.client.api(`/drives/${MS_DRIVE_ID}/items/${fileId}`).get();
       return response['@microsoft.graph.downloadUrl'];
     } catch (e) {
-      console.log(`Failed to delete file with id ${fileId} from drive ${MS_DRIVE_ID}`);
+      if (e.code == 'itemNotFound') {
+        console.log(`File with id ${fileId} not found on drive ${MS_DRIVE_ID}. Unable to download.`);
+        return null;
+      } else {
+        console.log(`Failed to download file with id ${fileId} from drive ${MS_DRIVE_ID}`);
+        throw e;
+      }
       throw e;
+    }
+  }
+
+  /**
+   * Get a temporary download URL for the file at the given path from the O365 drive.
+  */
+  async getDownloadUrlByFilePath(path, filename) {
+    const filePath = `${path}/${filename}`;
+    try {
+      const response = await this.client.api(`/drives/${MS_DRIVE_ID}/root:${filePath}`).get();
+      return response['@microsoft.graph.downloadUrl'];
+    } catch (e) {
+      if (e.code == 'itemNotFound') {
+        console.log(`File at path ${filePath} not found on drive ${MS_DRIVE_ID}. Unable to download.`);
+        return null;
+      } else {
+        console.log(`Failed to download file with path ${filePath} from drive ${MS_DRIVE_ID}`);
+        throw e;
+      }
     }
   }
 
