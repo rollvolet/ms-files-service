@@ -171,9 +171,9 @@ app.get('/downloads', async function(req, res, next) {
   try {
     const resource = req.query.resource;
     const documentType = req.query.type;
-    const { path, name } = await getDownloadLocation(documentType, { resource });
+    const location = await getDownloadLocation(documentType, { resource });
     const client = new GraphApiClient(sessionUri);
-    const downloadUrl = await client.getDownloadUrlByFilePath(path, name);
+    const downloadUrl = await client.getDownloadUrlByLocation(location);
     if (downloadUrl) {
       return res.location(downloadUrl).status(204).send();
     } else {

@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@lblod/mu-auth-sudo": "^0.6.1",
-    "@microsoft/microsoft-graph-client": "^3.0.1",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
     "express-fileupload": "^1.2.1",
     "isomorphic-fetch": "^3.0.0"
   }

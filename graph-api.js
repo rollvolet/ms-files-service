@@ -27,11 +27,31 @@ export default class GraphApiClient {
   }
 
   /**
+   * Get the MS fileId by searching a file in the given directory on the 0365 drive.
+  */
+  async findFile(path, search) {
+    const driveItem = await this.client.api(`/drives/${MS_DRIVE_ID}/root:${path}`).select('id').get();
+    if (driveItem) {
+      const searchResult = await this.client
+            .api(`/drives/${MS_DRIVE_ID}/items/${driveItem.id}/search(q='${search}')`)
+            .top(1)
+            .select('id,name')
+            .get();
+      return searchResult['value'][0]?.id;
+    } else {
+      console.log(`Cannot find directory ${path} on drive ${MS_DRIVE_ID}`);
+      return null;
+    }
+  }
+
+  /**
    * Delete the file with the given MS fileId from the O365 drive.
   */
   async deleteFile(fileId) {
     try {
-      await this.client.api(`/drives/${MS_DRIVE_ID}/items/${fileId}`).delete();
+      await this.client
+        .api(`/drives/${MS_DRIVE_ID}/items/${fileId}`)
+        .delete();
       console.log(`Deleting file with id ${fileId} from drive ${MS_DRIVE_ID} succeeded.`);
     } catch (e) {
       console.log(`Failed to delete file with id ${fileId} from drive ${MS_DRIVE_ID}`);
@@ -44,7 +64,10 @@ export default class GraphApiClient {
   */
   async getDownloadUrl(fileId) {
     try {
-      const response = await this.client.api(`/drives/${MS_DRIVE_ID}/items/${fileId}`).get();
+      const response = await this.client
+            .api(`/drives/${MS_DRIVE_ID}/items/${fileId}`)
+            .select('@microsoft.graph.downloadUrl')
+            .get();
       return response['@microsoft.graph.downloadUrl'];
     } catch (e) {
       if (e.code == 'itemNotFound') {
@@ -61,18 +84,31 @@ export default class GraphApiClient {
   /**
    * Get a temporary download URL for the file at the given path from the O365 drive.
   */
-  async getDownloadUrlByFilePath(path, filename) {
-    const filePath = `${path}/${filename}`;
-    try {
-      const response = await this.client.api(`/drives/${MS_DRIVE_ID}/root:${filePath}`).get();
-      return response['@microsoft.graph.downloadUrl'];
-    } catch (e) {
-      if (e.code == 'itemNotFound') {
-        console.log(`File at path ${filePath} not found on drive ${MS_DRIVE_ID}. Unable to download.`);
-        return null;
+  async getDownloadUrlByLocation({ path, name, search }) {
+    if (search) {
+      const msFileId = await this.findFile(path, search);
+      if (msFileId) {
+        return this.getDownloadUrl(msFileId);
       } else {
-        console.log(`Failed to download file with path ${filePath} from drive ${MS_DRIVE_ID}`);
-        throw e;
+        console.log(`File containing ${search} not found in directory ${path} on drive ${MS_DRIVE_ID}. Unable to download.`);
+        return null;
+      }
+    } else {
+      const filePath = `${path}/${name}`;
+      try {
+        const response = await this.client
+              .api(`/drives/${MS_DRIVE_ID}/root:${filePath}`)
+              .select('@microsoft.graph.downloadUrl')
+              .get();
+        return response['@microsoft.graph.downloadUrl'];
+      } catch (e) {
+        if (e.code == 'itemNotFound') {
+          console.log(`File at path ${filePath} not found on drive ${MS_DRIVE_ID}. Unable to download.`);
+          return null;
+        } else {
+          console.log(`Failed to download file with path ${filePath} from drive ${MS_DRIVE_ID}`);
+          throw e;
+        }
       }
     }
   }
