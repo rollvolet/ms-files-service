@@ -26,11 +26,6 @@ app.use(function(req, res, next) {
 });
 // end copy from mu-javascript-template
 
-const DOCUMENT_TYPES = {
-  INVOICE: 'http://data.rollvolet.be/concepts/3abc9905-29b9-47f2-a77d-e94a4025f8c3',
-  DEPOSIT_INVOICE: 'http://data.rollvolet.be/concepts/5c93373f-30f3-454c-8835-15140ff6d1d4'
-};
-
 const fileDropHandler = new FileDropHandler();
 fileDropHandler.listen();
 
@@ -127,7 +122,12 @@ app.get('/files/:id/download', async function(req, res, next) {
     if (msFileId) {
       const client = new GraphApiClient(sessionUri);
       const downloadUrl = await client.getDownloadUrl(msFileId);
-      return res.location(downloadUrl).status(204).send();
+      if (downloadUrl) {
+        return res.location(downloadUrl).status(204).send();
+      } else {
+        console.log(`File with id ${fileId} found in triplestore, but no file with MS fileId ${msFileId} found on drive.`);
+        return res.status(404).send();
+      }
     } else {
       console.log(`No MS fileId found in triplestore for file with id ${fileId}`);
       return res.status(404).send();

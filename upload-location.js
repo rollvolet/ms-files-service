@@ -44,9 +44,9 @@ export async function getUploadLocations(type, opts) {
         WHERE { ?case mu:uuid ${sparqlEscapeString(opts.case.id)} ; dct:identifier ?identifier . }
       `);
 
-      return { identifier: result.results.bindings[0]?.['identifier'].value, filename: opts.filename };
+      return { identifier: result.results.bindings[0]?.['identifier'].value, fileName: opts.fileName };
     };
-    pathFn = (opts) => [ { path: `${CASE_ATTACHMENT_DIR}/${opts.identifier}`, name: opts.filename } ];
+    pathFn = (opts) => [ { path: `${CASE_ATTACHMENT_DIR}/${opts.identifier}`, name: opts.fileName } ];
   }
 
   else if (type == FILE_TYPES.VISIT_REPORT) {
