@@ -8,6 +8,7 @@ const ORDER_DIR = process.env.ORDER_DIR || '/crm-development/orders';
 const DELIVERY_NOTE_DIR = process.env.DELIVERY_NOTE_DIR || '/crm-development/delivery-notes';
 const INVOICE_DIR = process.env.INVOICE_DIR || '/crm-development/invoices';
 const PRODUCTION_TICKET_TEMPLATES_DIR = process.env.PRODUCTION_TICKET_TEMPLATES_DIR || '/crm-development/production-ticket-templates';
+const PRODUCTION_TICKETS_DIR = process.env.PRODUCTION_TICKETS_DIR || '/crm-development/production-tickets';
 const CASE_ATTACHMENT_DIR = process.env.CASE_ATTACHMENT_DIR || '/crm-development/attachments';
 const ACCOUNTANCY_EXPORT_DIR = process.env.ACCOUNTANCY_EXPORT_DIR || '/crm-development/winbooks';
 
@@ -21,6 +22,7 @@ export const FILE_TYPES = {
   INVOICE: 'http://data.rollvolet.be/concepts/3abc9905-29b9-47f2-a77d-e94a4025f8c3',
   CASE_ATTACHMENT: 'http://data.rollvolet.be/concepts/44e7a6a6-b0e6-4a9c-ae4c-1f66275f730d',
   PRODUCTION_TICKET_TEMPLATE: 'http://data.rollvolet.be/concepts/0b49fae8-3546-4211-9c1e-64f359993c82',
+  PRODUCTION_TICKET: 'http://data.rollvolet.be/concepts/bcc644a0-eff3-4cf6-a60a-9d4e490d47f0',
   INVOICE_ACCOUNTANCY_EXPORT: 'http://data.rollvolet.be/concepts/6fbc15d2-11c0-4868-8b11-d15b8f1a3802',
   CUSTOMER_ACCOUNTANCY_EXPORT: 'http://data.rollvolet.be/concepts/7afecda8-f128-4043-a69c-a68cbaaedac5'
 };
@@ -146,8 +148,8 @@ export async function getUploadLocations(type, opts) {
   }
 
   else if (type == FILE_TYPES.INVOICE || type == FILE_TYPES.DEPOSIT_INVOICE) {
-    optionsFn = (opts) => {
-      const result = queryOne(`
+    optionsFn = async (opts) => {
+      const result = await queryOne(`
         PREFIX p2poInvoice: <https://purl.org/p2p-o/invoice#>
 
         SELECT ?number ?year
@@ -161,6 +163,38 @@ export async function getUploadLocations(type, opts) {
       return result;
     };
     pathFn = (opts) => [ { path: `${INVOICE_DIR}/${opts.year}`, name: `F${opts.number}.pdf`} ];
+  }
+
+  else if (type == FILE_TYPES.PRODUCTION_TICKET) {
+    optionsFn = async (opts) => {
+      let caseStatement;
+      if (opts.resource) {
+        caseStatement = `${sparqlEscapeUri(opts.resource)} `;
+      } else {
+        caseStatement = `?case mu:uuid ${sparqlEscapeString(opts.case.id)} ; `;
+      }
+      const result = await queryOne(`
+        PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+        PREFIX dct: <http://purl.org/dc/terms/>
+        PREFIX schema: <http://schema.org/>
+        PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+        PREFIX vcard: <http://www.w3.org/2006/vcard/ns#>
+
+        SELECT ?number ?year ?customerName
+        WHERE {
+          ${caseStatement} ext:request ?request ;
+            ext:order ?order ;
+            schema:customer ?customer .
+          ?request schema:identifier ?number .
+          ?order dct:issued ?date .
+          OPTIONAL { ?customer vcard:hasFamilyName ?customerName . }
+          BIND (YEAR(?date) as ?year)
+        } LIMIT 1
+      `);
+      result['customerName'] = result['customerName'] ? noNewLines(result['customerName']) : '';
+      return result;
+    };
+    pathFn = (opts) => [ { path: `${PRODUCTION_TICKETS_DIR}/${opts.year}`, name: `AD${opts.number}_${opts.customerName}.pdf`} ];
   }
 
   else if (type == FILE_TYPES.PRODUCTION_TICKET_TEMPLATE) {
@@ -246,4 +280,8 @@ async function getFileType(fileUri) {
       }
     } LIMIT 1
   `);
+}
+
+function noNewLines(name) {
+  return name.replace(/\r|\n|\r\n|\t|\|/g, '');
 }

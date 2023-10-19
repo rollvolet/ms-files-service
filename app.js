@@ -5,12 +5,8 @@ import { getSessionIdHeader, error } from './utils';
 import { FILE_TYPES, getUploadLocations } from './upload-location';
 import GraphApiClient from './graph-api';
 import FileDropHandler from './file-drop-handler';
-import {
-  insertUploadedFile,
-  getMsFileId,
-  deleteFile,
-  fetchInvoice
-} from './sparql';
+import { uploadCaseDocument } from './file-upload';
+import { getMsFileId, deleteFile } from './sparql';
 
 app.use(fileUpload());
 
@@ -52,18 +48,47 @@ app.post('/cases/:caseId/attachments', async function(req, res, next) {
     return next(new Error('File parameter is missing'));
 
   try {
-    const caseId = req.params.caseId;
-    const client = new GraphApiClient(sessionUri);
-    const { data, size, name } = req.files.file;
-    const [{ path, name: fileName }] = await getUploadLocations(FILE_TYPES.CASE_ATTACHMENT, {
-      case: { id: caseId },
-      fileName: name,
+    const file = await uploadCaseDocument(
+      req.params.caseId,
+      FILE_TYPES.CASE_ATTACHMENT,
+      req.files.file,
+      new GraphApiClient(sessionUri)
+    );
+    return res.status(201).send({
+      data: {
+        id: file.id,
+        type: 'files',
+        attributes: {
+          uri: file.uri,
+          name: file.name,
+          format: file.format,
+          size: file.size,
+          extension: file.extension,
+          created: file.created.toISOString()
+        }
+      }
     });
-    const uploadedFile = await client.uploadFile(path, fileName, data, size);
-    const file = await insertUploadedFile(uploadedFile, {
-      case: { id: caseId },
-      type: FILE_TYPES.CASE_ATTACHMENT
-    });
+  } catch(e) {
+    console.trace(e);
+    return next(new Error(e.message));
+  }
+});
+
+
+app.post('/cases/:caseId/production-tickets', async function(req, res, next) {
+  const sessionUri = getSessionIdHeader(req);
+  if (!sessionUri)
+    return next(new Error('Session header is missing'));
+  if (!req.files.file)
+    return next(new Error('File parameter is missing'));
+
+  try {
+    const file = await uploadCaseDocument(
+      req.params.caseId,
+      FILE_TYPES.PRODUCTION_TICKET,
+      req.files.file,
+      new GraphApiClient(sessionUri)
+    );
     return res.status(201).send({
       data: {
         id: file.id,
