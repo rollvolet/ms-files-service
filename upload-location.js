@@ -27,17 +27,29 @@ export const FILE_TYPES = {
   CUSTOMER_ACCOUNTANCY_EXPORT: 'http://data.rollvolet.be/concepts/7afecda8-f128-4043-a69c-a68cbaaedac5'
 };
 
-/**
- * Returns one or more locations a file with a given type should be uploaded to.
- * The location depends on the type of the file.
- * Multiple locations may be returned. The first one is considered to be the 'main' location.
- * Other locations are just copies of the same file and will not be tracked in the triplestore.
-*/
-export async function getUploadLocations(type, opts) {
-  let optionsFn, pathFn = () => {};
+class UploadLocationGenerator {
+  constructor(type, { optionsFn, pathFn, fuzzyPathFn }) {
+    this.type = type;
+    this.optionsFn = optionsFn || noop;
+    this.pathFn = pathFn || noop;
+    this.fuzzyPathFn = this.fuzzyPathFn || this.pathFn;
+  }
 
-  if (type == FILE_TYPES.CASE_ATTACHMENT) {
-    optionsFn = async (opts) => {
+  async getUploadLocations(opts) {
+    const pathOpts = await this.optionsFn(opts);
+    return this.pathFn(pathOpts);
+  }
+
+  async getDownloadLocation(opts) {
+    const pathOpts = await this.optionsFn(opts);
+    const locations = await this.fuzzyPathFn(pathOpts);
+    return locations[0];
+  }
+}
+
+const UPLOAD_LOCATIONS = [
+  new UploadLocationGenerator(FILE_TYPES.CASE_ATTACHMENT, {
+    optionsFn: async (opts) => {
       const result = await query(`
         PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
         PREFIX dct: <http://purl.org/dc/terms/>
@@ -47,12 +59,12 @@ export async function getUploadLocations(type, opts) {
       `);
 
       return { identifier: result.results.bindings[0]?.['identifier'].value, fileName: opts.fileName };
-    };
-    pathFn = (opts) => [ { path: `${CASE_ATTACHMENT_DIR}/${opts.identifier}`, name: opts.fileName } ];
-  }
+    },
+    pathFn: (opts) => [ { path: `${CASE_ATTACHMENT_DIR}/${opts.identifier}`, name: opts.fileName } ]
+  }),
 
-  else if (type == FILE_TYPES.VISIT_REPORT) {
-    optionsFn = (opts) => {
+  new UploadLocationGenerator(FILE_TYPES.VISIT_REPORT, {
+    optionsFn: (opts) => {
       return queryOne(`
         PREFIX dct: <http://purl.org/dc/terms/>
         PREFIX schema: <http://schema.org/>
@@ -64,12 +76,12 @@ export async function getUploadLocations(type, opts) {
           BIND (YEAR(?date) as ?year)
         } LIMIT 1
       `);
-    };
-    pathFn = (opts) => [ { path: `${VISIT_REPORT_DIR}/${opts.year}`, name: `AD${opts.number}.pdf`} ];
-  }
+    },
+    pathFn: (opts) => [ { path: `${VISIT_REPORT_DIR}/${opts.year}`, name: `AD${opts.number}.pdf`} ]
+  }),
 
-  else if (type == FILE_TYPES.INTERVENTION_REPORT) {
-    optionsFn = (opts) => {
+  new UploadLocationGenerator(FILE_TYPES.INTERVENTION_REPORT, {
+    optionsFn: (opts) => {
       return queryOne(`
         PREFIX dct: <http://purl.org/dc/terms/>
         PREFIX schema: <http://schema.org/>
@@ -81,12 +93,12 @@ export async function getUploadLocations(type, opts) {
           BIND (YEAR(?date) as ?year)
         } LIMIT 1
       `);
-    };
-    pathFn = (opts) => [ { path: `${INTERVENTION_REPORT_DIR}/${opts.year}`, name: `IR${opts.number}.pdf`} ];
-  }
+    },
+    pathFn: (opts) => [ { path: `${INTERVENTION_REPORT_DIR}/${opts.year}`, name: `IR${opts.number}.pdf`} ]
+  }),
 
-  else if (type == FILE_TYPES.OFFER) {
-    optionsFn = (opts) => {
+  new UploadLocationGenerator(FILE_TYPES.OFFER, {
+    optionsFn: (opts) => {
       return queryOne(`
         PREFIX dct: <http://purl.org/dc/terms/>
         PREFIX schema: <http://schema.org/>
@@ -103,12 +115,12 @@ export async function getUploadLocations(type, opts) {
           BIND (YEAR(?date) as ?year)
         } LIMIT 1
       `);
-    };
-    pathFn = (opts) => [ { path: `${OFFER_DIR}/${opts.year}`, name: `AD${opts.number}_${opts.version}.pdf`} ];
-  }
+    },
+    pathFn: (opts) => [ { path: `${OFFER_DIR}/${opts.year}`, name: `AD${opts.number}_${opts.version}.pdf`} ]
+  }),
 
-  else if (type == FILE_TYPES.ORDER) {
-    optionsFn = (opts) => {
+  new UploadLocationGenerator(FILE_TYPES.ORDER, {
+    optionsFn: (opts) => {
       return queryOne(`
         PREFIX dct: <http://purl.org/dc/terms/>
         PREFIX schema: <http://schema.org/>
@@ -123,12 +135,12 @@ export async function getUploadLocations(type, opts) {
           BIND (YEAR(?date) as ?year)
         } LIMIT 1
       `);
-    };
-    pathFn = (opts) => [ { path: `${ORDER_DIR}/${opts.year}`, name: `AD${opts.number}.pdf`} ];
-  }
+    },
+    pathFn: (opts) => [ { path: `${ORDER_DIR}/${opts.year}`, name: `AD${opts.number}.pdf`} ]
+  }),
 
-  else if (type == FILE_TYPES.DELIVERY_NOTE) {
-    optionsFn = (opts) => {
+  new UploadLocationGenerator(FILE_TYPES.DELIVERY_NOTE, {
+    optionsFn: (opts) => {
       return queryOne(`
         PREFIX dct: <http://purl.org/dc/terms/>
         PREFIX schema: <http://schema.org/>
@@ -143,12 +155,12 @@ export async function getUploadLocations(type, opts) {
           BIND (YEAR(?date) as ?year)
         } LIMIT 1
       `);
-    };
-    pathFn = (opts) => [ { path: `${DELIVERY_NOTE_DIR}/${opts.year}`, name: `AD${opts.number}.pdf`} ];
-  }
+    },
+    pathFn: (opts) => [ { path: `${DELIVERY_NOTE_DIR}/${opts.year}`, name: `AD${opts.number}.pdf`} ]
+  }),
 
-  else if (type == FILE_TYPES.INVOICE || type == FILE_TYPES.DEPOSIT_INVOICE) {
-    optionsFn = async (opts) => {
+  new UploadLocationGenerator(FILE_TYPES.INVOICE || type == FILE_TYPES.DEPOSIT_INVOICE, {
+    optionsFn: async (opts) => {
       const result = await queryOne(`
         PREFIX p2poInvoice: <https://purl.org/p2p-o/invoice#>
 
@@ -161,12 +173,12 @@ export async function getUploadLocations(type, opts) {
       `);
       result['number'] = `${result['number']}`.padStart(7, 0); // normalize invoice number
       return result;
-    };
-    pathFn = (opts) => [ { path: `${INVOICE_DIR}/${opts.year}`, name: `F${opts.number}.pdf`} ];
-  }
+    },
+    pathFn: (opts) => [ { path: `${INVOICE_DIR}/${opts.year}`, name: `F${opts.number}.pdf`} ]
+  }),
 
-  else if (type == FILE_TYPES.PRODUCTION_TICKET) {
-    optionsFn = async (opts) => {
+  new UploadLocationGenerator(FILE_TYPES.PRODUCTION_TICKET, {
+    optionsFn: async (opts) => {
       let caseStatement;
       if (opts.resource) {
         caseStatement = `${sparqlEscapeUri(opts.resource)} `;
@@ -193,12 +205,12 @@ export async function getUploadLocations(type, opts) {
       `);
       result['customerName'] = result['customerName'] ? noNewLines(result['customerName']) : '';
       return result;
-    };
-    pathFn = (opts) => [ { path: `${PRODUCTION_TICKETS_DIR}/${opts.year}`, name: `AD${opts.number}_${opts.customerName}.pdf`} ];
-  }
+    },
+    pathFn: (opts) => [ { path: `${PRODUCTION_TICKETS_DIR}/${opts.year}`, name: `AD${opts.number}_${opts.customerName}.pdf`} ]
+  }),
 
-  else if (type == FILE_TYPES.PRODUCTION_TICKET_TEMPLATE) {
-    optionsFn = (opts) => {
+  new UploadLocationGenerator(FILE_TYPES.PRODUCTION_TICKET_TEMPLATE, {
+    optionsFn: (opts) => {
       return queryOne(`
         PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
         PREFIX dct: <http://purl.org/dc/terms/>
@@ -213,35 +225,53 @@ export async function getUploadLocations(type, opts) {
           BIND (YEAR(?date) as ?year)
         } LIMIT 1
       `);
-    };
-    pathFn = (opts) => [ { path: `${PRODUCTION_TICKET_TEMPLATES_DIR}/${opts.year}`, name: `AD${opts.number}.pdf`} ];
-  }
+    },
+    pathFn: (opts) => [ { path: `${PRODUCTION_TICKET_TEMPLATES_DIR}/${opts.year}`, name: `AD${opts.number}.pdf`} ]
+  }),
 
-  else if (type == FILE_TYPES.INVOICE_ACCOUNTANCY_EXPORT) {
-    pathFn = () => [
+  new UploadLocationGenerator(FILE_TYPES.INVOICE_ACCOUNTANCY_EXPORT, {
+    pathFn: () => [
       { path: ACCOUNTANCY_EXPORT_DIR, name: 'ACT.csv' },
       { path: ACCOUNTANCY_EXPORT_DIR, name: `${timestamp()}-ACT.csv` }
-    ];
-  }
+    ]
+  }),
 
-  else if (type == FILE_TYPES.CUSTOMER_ACCOUNTANCY_EXPORT) {
-    pathFn = () => [
+  new UploadLocationGenerator(FILE_TYPES.CUSTOMER_ACCOUNTANCY_EXPORT, {
+    pathFn: () => [
       { path: ACCOUNTANCY_EXPORT_DIR, name: 'CSF.csv' },
       { path: ACCOUNTANCY_EXPORT_DIR, name: `${timestamp()}-CSF.csv` }
-    ];
-  }
+    ]
+  }),
+];
 
-  else {
-    throw new Error(`Upload location not yet implemented for file type '${type}'`);
-  }
-
-  const pathOpts = await optionsFn(opts);
-  return pathFn(pathOpts);
+/**
+ * Returns one or more locations a file with a given type should be uploaded to.
+ * The location depends on the type of the file.
+ * Multiple locations may be returned. The first one is considered to be the 'main' location.
+ * Other locations are just copies of the same file and will not be tracked in the triplestore.
+*/
+export function getUploadLocations(type, opts) {
+  return findGenerator(type).getUploadLocations(opts);
 }
 
 export async function getUploadLocationsForFile(fileUri) {
   const { type, resource } = await getFileType(fileUri);
   return getUploadLocations(type, { resource });
+}
+
+export function getDownloadLocation(type, opts) {
+  return findGenerator(type).getDownloadLocation(opts);
+}
+
+/* Helper functions */
+
+function findGenerator(type) {
+  const generator = UPLOAD_LOCATIONS.find((generator) => generator.type == type);
+  if (generator) {
+    return generator;
+  } else {
+    throw new Error(`Upload location not yet implemented for file type '${type}'`);
+  }
 }
 
 function timestamp(date = new Date()) {
@@ -285,3 +315,5 @@ async function getFileType(fileUri) {
 function noNewLines(name) {
   return name.replace(/\r|\n|\r\n|\t|\|/g, '');
 }
+
+function noop() { };

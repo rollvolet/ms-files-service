@@ -2,7 +2,7 @@ import httpContext from 'express-http-context';
 import { app, errorHandler } from 'mu';
 import fileUpload from 'express-fileupload';
 import { getSessionIdHeader, error } from './utils';
-import { FILE_TYPES, getUploadLocations } from './upload-location';
+import { FILE_TYPES, getDownloadLocation } from './upload-location';
 import GraphApiClient from './graph-api';
 import FileDropHandler from './file-drop-handler';
 import { uploadCaseDocument } from './file-upload';
@@ -171,7 +171,7 @@ app.get('/downloads', async function(req, res, next) {
   try {
     const resource = req.query.resource;
     const documentType = req.query.type;
-    const [{ path, name }] = await getUploadLocations(documentType, { resource });
+    const { path, name } = await getDownloadLocation(documentType, { resource });
     const client = new GraphApiClient(sessionUri);
     const downloadUrl = await client.getDownloadUrlByFilePath(path, name);
     if (downloadUrl) {
