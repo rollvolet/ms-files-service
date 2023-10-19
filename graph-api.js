@@ -27,20 +27,39 @@ export default class GraphApiClient {
   }
 
   /**
-   * Get the MS fileId by searching a file in the given directory on the 0365 drive.
+   * Find the MS fileId of a file in the given directory on the O365 drive
   */
-  async findFile(path, search) {
-    const driveItem = await this.client.api(`/drives/${MS_DRIVE_ID}/root:${path}`).select('id').get();
-    if (driveItem) {
-      const searchResult = await this.client
-            .api(`/drives/${MS_DRIVE_ID}/items/${driveItem.id}/search(q='${search}')`)
-            .top(1)
-            .select('id,name')
-            .get();
-      return searchResult['value'][0]?.id;
+  async findFileByLocation({ path, name, search }) {
+    if (search) {
+      const driveItem = await this.client.api(`/drives/${MS_DRIVE_ID}/root:${path}`).select('id').get();
+      if (driveItem) {
+        const searchResult = await this.client
+              .api(`/drives/${MS_DRIVE_ID}/items/${driveItem.id}/search(q='${search}')`)
+              .top(1)
+              .select('id,name')
+              .get();
+        return searchResult['value'][0]?.id;
+      } else {
+        console.log(`Cannot find directory ${path} on drive ${MS_DRIVE_ID}.`);
+        return null;
+      }
     } else {
-      console.log(`Cannot find directory ${path} on drive ${MS_DRIVE_ID}`);
-      return null;
+      const filePath = `${path}/${name}`;
+      try {
+        const response = await this.client
+              .api(`/drives/${MS_DRIVE_ID}/root:${filePath}`)
+              .select('id,name')
+              .get();
+        return response['id'];
+      } catch (e) {
+        if (e.code == 'itemNotFound') {
+          console.log(`File at path ${filePath} not found on drive ${MS_DRIVE_ID}.`);
+          return null;
+        } else {
+          console.log(`Failed to find file with path ${filePath} on drive ${MS_DRIVE_ID}`);
+          throw e;
+        }
+      }
     }
   }
 
@@ -78,38 +97,6 @@ export default class GraphApiClient {
         throw e;
       }
       throw e;
-    }
-  }
-
-  /**
-   * Get a temporary download URL for the file at the given path from the O365 drive.
-  */
-  async getDownloadUrlByLocation({ path, name, search }) {
-    if (search) {
-      const msFileId = await this.findFile(path, search);
-      if (msFileId) {
-        return this.getDownloadUrl(msFileId);
-      } else {
-        console.log(`File containing ${search} not found in directory ${path} on drive ${MS_DRIVE_ID}. Unable to download.`);
-        return null;
-      }
-    } else {
-      const filePath = `${path}/${name}`;
-      try {
-        const response = await this.client
-              .api(`/drives/${MS_DRIVE_ID}/root:${filePath}`)
-              .select('@microsoft.graph.downloadUrl')
-              .get();
-        return response['@microsoft.graph.downloadUrl'];
-      } catch (e) {
-        if (e.code == 'itemNotFound') {
-          console.log(`File at path ${filePath} not found on drive ${MS_DRIVE_ID}. Unable to download.`);
-          return null;
-        } else {
-          console.log(`Failed to download file with path ${filePath} from drive ${MS_DRIVE_ID}`);
-          throw e;
-        }
-      }
     }
   }
 

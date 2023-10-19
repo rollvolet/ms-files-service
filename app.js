@@ -6,7 +6,7 @@ import { FILE_TYPES, getDownloadLocation } from './upload-location';
 import GraphApiClient from './graph-api';
 import FileDropHandler from './file-drop-handler';
 import { uploadCaseDocument } from './file-upload';
-import { getMsFileId, deleteFile } from './sparql';
+import { getFileId, getMsFileId, deleteFile } from './sparql';
 
 app.use(fileUpload());
 
@@ -173,12 +173,42 @@ app.get('/downloads', async function(req, res, next) {
     const documentType = req.query.type;
     const location = await getDownloadLocation(documentType, { resource });
     const client = new GraphApiClient(sessionUri);
-    const downloadUrl = await client.getDownloadUrlByLocation(location);
-    if (downloadUrl) {
+    const msFileId = await client.findFileByLocation(location);
+    if (msFileId) {
+      const downloadUrl = await client.getDownloadUrl(msFileId);
       return res.location(downloadUrl).status(204).send();
     } else {
       return res.status(404).send();
     }
+  } catch(e) {
+    console.trace(e);
+    return next(new Error(e.message));
+  }
+});
+
+app.delete('/downloads', async function(req, res, next) {
+  const sessionUri = getSessionIdHeader(req);
+  if (!sessionUri)
+    return next(new Error('Session header is missing'));
+
+  try {
+    const resource = req.query.resource;
+    const documentType = req.query.type;
+    const location = await getDownloadLocation(documentType, { resource });
+    const client = new GraphApiClient(sessionUri);
+    const msFileId = await client.findFileByLocation(location);
+    if (msFileId) {
+      try {
+        await client.deleteFile(msFileId);
+      } catch (e) {
+        console.log(`Failed to delete file from drive, but will still continue to remove file from triplestore`);
+      }
+      const fileId = await getFileId(msFileId);
+      if (fileId) {
+        await deleteFile(fileId);
+      }
+    }
+    return res.status(204).send();
   } catch(e) {
     console.trace(e);
     return next(new Error(e.message));

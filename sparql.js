@@ -69,7 +69,6 @@ async function insertUploadedFile(file, { case: _case, source, type }) {
   };
 }
 
-
 async function moveUploadedFile(localFileUri, uploadedFile) {
   const remoteFileId = uuid();
   const remoteFileUri = `${BASE_URI}/files/${remoteFileId}`;
@@ -130,6 +129,23 @@ async function getMsFileId(fileId) {
   `);
 
   return result.results.bindings[0]?.['msFileId'].value;
+}
+
+async function getFileId(msFileId) {
+  const result = await query(`
+    PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+    PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#>
+    PREFIX dct: <http://purl.org/dc/terms/>
+
+    SELECT ?uuid
+    WHERE {
+      ?file mu:uuid ?uuid .
+      ?remoteFile nie:dataSource ?file ;
+          dct:identifier ${sparqlEscapeString(msFileId)} .
+    } LIMIT 1
+  `);
+
+  return result.results.bindings[0]?.['uuid'].value;
 }
 
 async function deleteFile(fileId) {
@@ -256,6 +272,7 @@ export {
   USERS_GRAPH,
   insertUploadedFile,
   moveUploadedFile,
+  getFileId,
   getMsFileId,
   deleteFile,
   fetchInvoice,
