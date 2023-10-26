@@ -29,7 +29,7 @@ export const FILE_TYPES = {
 
 class UploadLocationGenerator {
   constructor(type, { optionsFn, pathFn, fuzzyPathFn }) {
-    this.type = type;
+    this.types = Array.isArray(type) ? type : [type];
     this.optionsFn = optionsFn || noop;
     this.pathFn = pathFn || noop;
     this.fuzzyPathFn = fuzzyPathFn;
@@ -159,7 +159,7 @@ const UPLOAD_LOCATIONS = [
     pathFn: (opts) => [ { path: `${DELIVERY_NOTE_DIR}/${opts.year}`, name: `AD${opts.number}.pdf`} ]
   }),
 
-  new UploadLocationGenerator(FILE_TYPES.INVOICE || type == FILE_TYPES.DEPOSIT_INVOICE, {
+  new UploadLocationGenerator([FILE_TYPES.INVOICE, FILE_TYPES.DEPOSIT_INVOICE], {
     optionsFn: async (opts) => {
       const result = await queryOne(`
         PREFIX p2poInvoice: <https://purl.org/p2p-o/invoice#>
@@ -267,7 +267,7 @@ export function getDownloadLocation(type, opts) {
 /* Helper functions */
 
 function findGenerator(type) {
-  const generator = UPLOAD_LOCATIONS.find((generator) => generator.type == type);
+  const generator = UPLOAD_LOCATIONS.find((generator) => generator.types.includes(type));
   if (generator) {
     return generator;
   } else {
