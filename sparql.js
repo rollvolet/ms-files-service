@@ -208,36 +208,6 @@ async function deleteFile(fileId) {
   `);
 }
 
-async function fetchInvoice(invoiceId) {
-  const result = await query(`
-    PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
-    PREFIX p2poDocument: <https://purl.org/p2p-o/document#>
-    PREFIX p2poInvoice: <https://purl.org/p2p-o/invoice#>
-
-    SELECT ?invoice ?date ?number ?type
-    WHERE {
-      ?invoice a p2poDocument:E-Invoice, ?type ;
-        mu:uuid ${sparqlEscapeString(invoiceId)} ;
-        p2poInvoice:dateOfIssue ?date ;
-        p2poInvoice:invoiceNumber ?number .
-        FILTER (?type != p2poDocument:E-Invoice)
-    } LIMIT 1
-  `);
-
-  if (result.results.bindings.length) {
-    const binding = result.results.bindings[0];
-    return {
-      uri: binding['invoice'].value,
-      id: invoiceId,
-      date: new Date(Date.parse(binding['date'].value)),
-      number: binding['number'].value,
-      isDepositInvoice: binding['type'].value == 'https://purl.org/p2p-o/invoice#E-PrePaymentInvoice'
-    };
-  } else {
-    return null;
-  }
-}
-
 async function getActiveSessionForFileCreator(fileUri) {
   const result = await querySudo(`
     PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
@@ -275,6 +245,5 @@ export {
   getFileId,
   getMsFileId,
   deleteFile,
-  fetchInvoice,
   getActiveSessionForFileCreator
 }
