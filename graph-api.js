@@ -30,7 +30,31 @@ export default class GraphApiClient {
    * Find the MS fileId of a file in the given directory on the O365 drive
   */
   async findFileByLocation({ path, name, search }) {
-    if (search) {
+    let msFileId = null;
+
+    if (name) {
+      const filePath = `${path}/${name}`;
+      try {
+        const response = await this.client
+              .api(`/drives/${MS_DRIVE_ID}/root:${filePath}`)
+              .select('id,name')
+              .get();
+        msFileId = response['id'];
+      } catch (e) {
+        if (e.code == 'itemNotFound') {
+          console.log(`File at path ${filePath} not found on drive ${MS_DRIVE_ID}.`);
+        } else {
+          console.log(`Failed to find file with path ${filePath} on drive ${MS_DRIVE_ID}`);
+          throw e;
+        }
+      }
+    }
+
+    // Fallback to search if file is not found at exact location (e.g. because customer name changed)
+    if (!msFileId && search) {
+      if (name) {
+        console.log(`File not found at exact location ${path}/${name}. Trying to find it by searching on ${path}/${search} now`);
+      }
       const driveItem = await this.client.api(`/drives/${MS_DRIVE_ID}/root:${path}`).select('id').get();
       if (driveItem) {
         const searchResult = await this.client
@@ -38,29 +62,13 @@ export default class GraphApiClient {
               .top(1)
               .select('id,name')
               .get();
-        return searchResult['value'][0]?.id;
+        msFileId = searchResult['value'][0]?.id;
       } else {
         console.log(`Cannot find directory ${path} on drive ${MS_DRIVE_ID}.`);
-        return null;
-      }
-    } else {
-      const filePath = `${path}/${name}`;
-      try {
-        const response = await this.client
-              .api(`/drives/${MS_DRIVE_ID}/root:${filePath}`)
-              .select('id,name')
-              .get();
-        return response['id'];
-      } catch (e) {
-        if (e.code == 'itemNotFound') {
-          console.log(`File at path ${filePath} not found on drive ${MS_DRIVE_ID}.`);
-          return null;
-        } else {
-          console.log(`Failed to find file with path ${filePath} on drive ${MS_DRIVE_ID}`);
-          throw e;
-        }
       }
     }
+
+    return msFileId;
   }
 
   /**

@@ -28,11 +28,10 @@ export const FILE_TYPES = {
 };
 
 class UploadLocationGenerator {
-  constructor(type, { optionsFn, pathFn, fuzzyPathFn }) {
+  constructor(type, { optionsFn, pathFn }) {
     this.types = Array.isArray(type) ? type : [type];
     this.optionsFn = optionsFn || noop;
     this.pathFn = pathFn || noop;
-    this.fuzzyPathFn = fuzzyPathFn;
   }
 
   async getUploadLocations(opts) {
@@ -42,7 +41,7 @@ class UploadLocationGenerator {
 
   async getDownloadLocation(opts) {
     const pathOpts = await this.optionsFn(opts);
-    const locations = this.fuzzyPathFn ? await this.fuzzyPathFn(pathOpts) : await this.pathFn(pathOpts);
+    const locations = await this.pathFn(pathOpts);
     return locations[0];
   }
 }
@@ -206,8 +205,11 @@ const UPLOAD_LOCATIONS = [
       result['customerName'] = result['customerName'] ? noNewLines(result['customerName']) : '';
       return result;
     },
-    pathFn: (opts) => [ { path: `${PRODUCTION_TICKETS_DIR}/${opts.year}`, name: `AD${opts.number}_${opts.customerName}.pdf`} ],
-    fuzzyPathFn: (opts) => [ { path: `${PRODUCTION_TICKETS_DIR}/${opts.year}`, search: `AD${opts.number}`} ]
+    pathFn: (opts) => [{
+      path: `${PRODUCTION_TICKETS_DIR}/${opts.year}`,
+      name: `AD${opts.number}_${opts.customerName}.pdf`,
+      search: `AD${opts.number}`
+    }]
   }),
 
   new UploadLocationGenerator(FILE_TYPES.PRODUCTION_TICKET_TEMPLATE, {
