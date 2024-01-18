@@ -202,7 +202,7 @@ const UPLOAD_LOCATIONS = [
           BIND (YEAR(?date) as ?year)
         } LIMIT 1
       `);
-      result['customerName'] = result['customerName'] ? noNewLines(result['customerName']) : '';
+      result['customerName'] = result['customerName'] ? noSpecialChars(result['customerName']) : '';
       return result;
     },
     pathFn: (opts) => [{
@@ -315,8 +315,8 @@ async function getFileType(fileUri) {
   `);
 }
 
-function noNewLines(name) {
-  return name.replace(/\r|\n|\r\n|\t|\|/g, '');
+function noSpecialChars(name) {
+  return name.replace(/\r|\n|\r\n|\t|\"/g, '');
 }
 
 function noop() { };
