@@ -108,14 +108,17 @@ const UPLOAD_LOCATIONS = [
         WHERE {
           ?case ext:offer ${sparqlEscapeUri(opts.resource)} ;
             ext:request ?request .
-          ${sparqlEscapeUri(opts.resource)} dct:issued ?date ;
-            owl:versionInfo ?version .
+          ${sparqlEscapeUri(opts.resource)} dct:issued ?date .
+          OPTIONAL { ${sparqlEscapeUri(opts.resource)} owl:versionInfo ?version . }
           ?request schema:identifier ?number .
           BIND (YEAR(?date) as ?year)
         } LIMIT 1
       `);
     },
-    pathFn: (opts) => [ { path: `${OFFER_DIR}/${opts.year}`, name: `AD${opts.number}_${opts.version}.pdf`} ]
+    pathFn: (opts) => [{
+      path: `${OFFER_DIR}/${opts.year}`,
+      name: opts.version ? `AD${opts.number}_${opts.version}.pdf` : `AD${opts.number}.pdf`
+    }]
   }),
 
   new UploadLocationGenerator(FILE_TYPES.ORDER, {
