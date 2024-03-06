@@ -55,19 +55,31 @@ export default class GraphApiClient {
       if (name) {
         console.log(`File not found at exact location ${path}/${name}. Trying to find it by searching on ${path}/${search} now`);
       }
-      const driveItem = await this.client.api(`/drives/${MS_DRIVE_ID}/root:${path}`).select('id').get();
-      if (driveItem) {
-        const searchResult = await this.client
-              .api(`/drives/${MS_DRIVE_ID}/items/${driveItem.id}/search(q='${search}')`)
-              .top(1)
-              .select('id,name')
-              .get();
-        msFileId = searchResult['value'][0]?.id;
-      } else {
-        console.log(`Cannot find directory ${path} on drive ${MS_DRIVE_ID}.`);
+      try {
+        const driveItem = await this.client.api(`/drives/${MS_DRIVE_ID}/root:${path}`).select('id').get();
+        try {
+          const searchResult = await this.client
+                .api(`/drives/${MS_DRIVE_ID}/items/${driveItem.id}/search(q='${search}')`)
+                .top(1)
+                .select('id,name')
+                .get();
+          msFileId = searchResult['value'][0]?.id;
+        } catch (e) {
+          if (e.code == 'itemNotFound') {
+            console.log(`No search results found for path ${path}/${search} not found on drive ${MS_DRIVE_ID}.`);
+          } else {
+            console.log(`Failed to search path ${path}/${search} on drive ${MS_DRIVE_ID}`);
+            throw e;
+          }
+        }
+      } catch (e) {
+        if (e.code == 'itemNotFound') {
+          console.log(`Cannot find directory ${path} on drive ${MS_DRIVE_ID}.`);
+        } else {
+          throw e;
+        }
       }
     }
-
     return msFileId;
   }
 
