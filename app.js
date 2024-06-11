@@ -1,14 +1,16 @@
 import httpContext from 'express-http-context';
 import { app, errorHandler } from 'mu';
 import fileUpload from 'express-fileupload';
-import { getSessionIdHeader, error } from './utils';
+import { getSessionIdHeader } from './utils';
 import { FILE_TYPES, getDownloadLocation } from './upload-location';
 import GraphApiClient from './graph-api';
 import FileDropHandler from './file-drop-handler';
 import { uploadCaseDocument } from './file-upload';
 import { getFileId, getMsFileId, deleteFile } from './sparql';
 
-app.use(fileUpload());
+app.use(fileUpload({
+  defParamCharset: 'utf8'
+}));
 
 // Copied from mu-javascript-template since the httpContext middleware
 // must be included  after the express-fileupload middleware.
